@@ -1,11 +1,10 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
+import React, { useState, useMemo, useEffect } from 'react';
 import { QUESTIONS } from './data.ts';
 import { ModuleType, AnswerType, UserAnswer, Question } from './types.ts';
 import { QuizCard } from './components/QuizCard.tsx';
 
-const STORAGE_KEY = 'seas_ce_quiz_progress_v2';
+const STORAGE_KEY = 'seas_ce_quiz_v3_pc';
 
 const App: React.FC = () => {
   const [activeModule, setActiveModule] = useState<ModuleType | 'TODOS'>(() => {
@@ -26,10 +25,9 @@ const App: React.FC = () => {
   });
 
   const [showFinished, setShowFinished] = useState(false);
-  const [explanationEnabled, setExplanationEnabled] = useState(false);
+  const [explanationEnabled, setExplanationEnabled] = useState(true);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [isReading, setIsReading] = useState(false);
-  const [isOffline] = useState(!navigator.onLine);
 
   const filteredQuestions = useMemo(() => {
     if (isReviewMode) {
@@ -47,28 +45,29 @@ const App: React.FC = () => {
     const relevantQuestions = isReviewMode ? filteredQuestions : (activeModule === 'TODOS' ? QUESTIONS : QUESTIONS.filter(q => q.module === activeModule));
     const relevantAnswers = answers.filter(a => relevantQuestions.some(q => q.id === a.questionId));
     const correct = relevantAnswers.filter(a => a.isCorrect).length;
-    const progress = Math.round((relevantAnswers.length / (relevantQuestions.length || 1)) * 100) || 0;
-    return { correct, wrong: relevantAnswers.length - correct, progress };
+    const total = relevantQuestions.length || 1;
+    const progress = Math.round((relevantAnswers.length / total) * 100) || 0;
+    return { correct, wrong: relevantAnswers.length - correct, progress, total: relevantQuestions.length, answered: relevantAnswers.length };
   }, [answers, filteredQuestions, activeModule, isReviewMode]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeModule, answers, explanationEnabled }));
   }, [activeModule, answers, explanationEnabled]);
 
-  // Função para usar a Voz Gratuita do Sistema (Microsoft Edge / Google)
+  // Função para Voz Humana Gratuita (Microsoft/Google)
   const speakNative = (text: string) => {
-    window.speechSynthesis.cancel(); // Para qualquer fala anterior
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'pt-BR';
-    utterance.rate = 1.1;
+    utterance.rate = 1.0;
     
-    // Tenta encontrar uma voz feminina/humana melhor (Microsoft Maria ou Google)
+    // Busca vozes "Microsoft" ou "Neural" no sistema
     const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => 
-      (v.name.includes('Maria') || v.name.includes('Francisca') || v.name.includes('Neural')) && v.lang.includes('pt-BR')
+    const premiumVoice = voices.find(v => 
+      (v.name.includes('Microsoft') || v.name.includes('Neural') || v.name.includes('Google')) && v.lang.includes('pt-BR')
     ) || voices.find(v => v.lang.includes('pt-BR'));
     
-    if (preferredVoice) utterance.voice = preferredVoice;
+    if (premiumVoice) utterance.voice = premiumVoice;
 
     utterance.onstart = () => setIsReading(true);
     utterance.onend = () => setIsReading(false);
@@ -106,138 +105,180 @@ const App: React.FC = () => {
     setIsReviewMode(true);
     setCurrentIndex(0);
     setShowFinished(false);
-    setExplanationEnabled(true);
   };
 
   const resetQuiz = () => {
-    setAnswers([]);
-    setCurrentIndex(0);
-    setShowFinished(false);
-    setIsReviewMode(false);
-    setExplanationEnabled(false);
+    if(confirm("Deseja reiniciar este módulo? Todo o progresso dele será perdido.")) {
+      setAnswers(prev => prev.filter(a => !filteredQuestions.some(q => q.id === a.questionId)));
+      setCurrentIndex(0);
+      setShowFinished(false);
+      setIsReviewMode(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 max-w-md mx-auto relative shadow-2xl border-x border-slate-200">
-      <header className={`bg-white border-b px-3 py-3 flex items-center justify-between sticky top-0 z-50 transition-colors ${isReviewMode ? 'border-b-amber-200 bg-amber-50/50' : ''}`}>
-        <div className="flex items-center gap-2">
-          <div className={`${isReviewMode ? 'bg-amber-600' : 'bg-blue-600'} p-1.5 rounded-lg`}>
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-100 font-sans selection:bg-blue-100">
+      {/* Sidebar Desktop / Header Mobile */}
+      <aside className="lg:w-80 bg-white border-r border-slate-200 lg:sticky lg:top-0 lg:h-screen flex flex-col z-40 shadow-sm">
+        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-100">
+            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           </div>
-          <h1 className="text-sm font-black text-slate-900 uppercase tracking-tighter">
-            {isReviewMode ? 'Modo Revisão' : 'SEAS-CE'}
-          </h1>
+          <div>
+            <h1 className="text-lg font-black text-slate-900 tracking-tighter uppercase leading-none">SEAS-CE</h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Simulado Interativo</p>
+          </div>
         </div>
-        <button 
-          onClick={() => setExplanationEnabled(!explanationEnabled)}
-          className={`text-[10px] font-bold px-3 py-1.5 rounded-full border transition-all ${explanationEnabled ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-400 border-slate-200'}`}
-        >
-          {explanationEnabled ? 'DICA ATIVA' : 'VER DICA'}
-        </button>
-      </header>
 
-      <div className="w-full bg-slate-200 h-1.5">
-        <div className={`${isReviewMode ? 'bg-amber-500' : 'bg-blue-600'} h-full transition-all duration-700 ease-out`} style={{ width: `${stats.progress}%` }}></div>
-      </div>
-
-      <main className="flex-grow p-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
-        {!showFinished ? (
-          <>
-            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              <span>{isReviewMode ? 'Revisando Erros' : activeModule} • {currentIndex + 1}/{(filteredQuestions.length || 1)}</span>
-              <div className="flex gap-2">
-                <span className="text-emerald-500">C: {stats.correct}</span>
-                <span className="text-rose-500">E: {stats.wrong}</span>
+        {/* Estatísticas na Sidebar (Desktop) */}
+        <div className="hidden lg:block p-6 bg-slate-50/50">
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Seu Desempenho</h2>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between text-[11px] font-bold mb-1">
+                <span className="text-slate-500 uppercase">Progresso</span>
+                <span className="text-blue-600">{stats.progress}%</span>
+              </div>
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div className="bg-blue-600 h-full transition-all duration-1000" style={{ width: `${stats.progress}%` }}></div>
               </div>
             </div>
-
-            {!isReviewMode && (
-              <div className="overflow-x-auto no-scrollbar flex gap-2 pb-1">
-                {['TODOS', ...Object.values(ModuleType)].map((mod) => (
-                  <button
-                    key={mod}
-                    onClick={() => { setActiveModule(mod as any); setCurrentIndex(0); setAnswers([]); }}
-                    className={`whitespace-nowrap px-4 py-2 rounded-full text-[10px] font-black transition-all ${activeModule === mod ? 'bg-slate-900 text-white shadow-lg scale-105' : 'bg-white text-slate-400 border border-slate-200'}`}
-                  >
-                    {mod === 'TODOS' ? 'GERAL' : mod}
-                  </button>
-                ))}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white p-3 rounded-xl border border-slate-100">
+                <p className="text-emerald-600 font-black text-xl">{stats.correct}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Acertos</p>
               </div>
-            )}
-
-            {currentQuestion ? (
-              <QuizCard 
-                question={currentQuestion} 
-                onAnswer={handleAnswer}
-                userAnswer={currentAnswer?.answer}
-                showExplanation={isReviewMode ? true : explanationEnabled}
-                onSpeak={() => handleSpeak(currentQuestion)}
-                isReading={isReading}
-                isAudioLoading={false}
-                isAudioCached={true}
-              />
-            ) : (
-              <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-slate-300">
-                <p className="text-slate-400 font-bold uppercase text-xs">Nenhuma questão encontrada</p>
+              <div className="bg-white p-3 rounded-xl border border-slate-100">
+                <p className="text-rose-500 font-black text-xl">{stats.wrong}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Erros</p>
               </div>
-            )}
-
-            <div className="mt-auto grid grid-cols-2 gap-3 pt-4">
-              <button 
-                onClick={() => { if(currentIndex > 0) setCurrentIndex(v => v-1); }}
-                disabled={currentIndex === 0}
-                className="py-4 rounded-2xl bg-white border border-slate-200 text-slate-500 font-black text-xs active:scale-95 disabled:opacity-30 transition-all"
-              >
-                ANTERIOR
-              </button>
-              <button 
-                onClick={next}
-                disabled={!currentAnswer}
-                className={`py-4 rounded-2xl font-black text-xs text-white shadow-xl transition-all active:scale-95 ${currentAnswer ? (isReviewMode ? 'bg-amber-600' : 'bg-blue-600') : 'bg-slate-300'}`}
-              >
-                {currentIndex === filteredQuestions.length - 1 ? 'RESULTADO' : 'PRÓXIMA'}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="flex-grow flex flex-col items-center justify-center text-center animate-in zoom-in-95 duration-500">
-            <div className={`w-20 h-20 ${isReviewMode ? 'bg-amber-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center mb-6 shadow-2xl ring-8 ring-blue-50`}>
-              <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-            </div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tighter">Parabéns!</h2>
-            <div className="bg-white w-full p-8 rounded-3xl border border-slate-100 mb-8 shadow-sm">
-              <div className="text-5xl font-black text-slate-900 mb-2">{Math.round((stats.correct/(filteredQuestions.length || 1))*100)}%</div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aproveitamento Final</p>
-              
-              <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-slate-50">
-                <div>
-                  <div className="text-emerald-500 font-black text-2xl">{stats.correct}</div>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase">Acertos</div>
-                </div>
-                <div>
-                  <div className="text-rose-500 font-black text-2xl">{stats.wrong}</div>
-                  <div className="text-[9px] font-bold text-slate-400 uppercase">Erros</div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="w-full space-y-3">
-              {stats.wrong > 0 && !isReviewMode && (
-                <button onClick={startReview} className="w-full bg-amber-500 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg active:scale-95 transition-all">
-                  Revisar Erros ({stats.wrong})
-                </button>
-              )}
-              <button onClick={resetQuiz} className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg active:scale-95 transition-all">
-                Novo Simulado
-              </button>
             </div>
           </div>
-        )}
-      </main>
+        </div>
 
-      <footer className="py-4 text-center border-t bg-white">
-        <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Professor Robson Sousa</p>
-      </footer>
+        {/* Seleção de Módulos */}
+        <nav className="p-4 flex-grow overflow-y-auto no-scrollbar">
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Módulos</h2>
+          <div className="space-y-1">
+            {['TODOS', ...Object.values(ModuleType)].map((mod) => (
+              <button
+                key={mod}
+                onClick={() => { setActiveModule(mod as any); setCurrentIndex(0); setShowFinished(false); setIsReviewMode(false); }}
+                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-between ${activeModule === mod ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                <span>{mod === 'TODOS' ? 'Simulado Geral' : mod}</span>
+                {activeModule === mod && <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        <div className="p-4 border-t border-slate-100 bg-slate-50/30">
+           <button onClick={resetQuiz} className="w-full py-3 rounded-xl text-[10px] font-black text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest">
+              Reiniciar Módulo
+           </button>
+        </div>
+      </aside>
+
+      {/* Área Principal */}
+      <main className="flex-grow flex flex-col relative min-h-screen">
+        {/* Header Mobile Only */}
+        <header className="lg:hidden bg-white border-b p-4 flex justify-between items-center sticky top-0 z-50">
+           <span className="text-sm font-black text-slate-900">{activeModule === 'TODOS' ? 'Geral' : activeModule}</span>
+           <div className="flex gap-2">
+              <span className="text-[10px] font-black text-emerald-600">C: {stats.correct}</span>
+              <span className="text-[10px] font-black text-rose-500">E: {stats.wrong}</span>
+           </div>
+        </header>
+
+        {/* Barra de Progresso Mobile */}
+        <div className="lg:hidden w-full h-1 bg-slate-100">
+           <div className="h-full bg-blue-600 transition-all duration-500" style={{ width: `${stats.progress}%` }}></div>
+        </div>
+
+        <div className="flex-grow flex flex-col items-center justify-center p-4 lg:p-12">
+          {!showFinished ? (
+            <div className="w-full max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">Questão {currentIndex + 1}</h2>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">De {filteredQuestions.length} questões no total</p>
+                </div>
+                <button 
+                  onClick={() => setExplanationEnabled(!explanationEnabled)}
+                  className={`px-4 py-2 rounded-full text-[10px] font-black transition-all border ${explanationEnabled ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400'}`}
+                >
+                  DICA {explanationEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              {currentQuestion && (
+                <QuizCard 
+                  question={currentQuestion} 
+                  onAnswer={handleAnswer}
+                  userAnswer={currentAnswer?.answer}
+                  showExplanation={explanationEnabled}
+                  onSpeak={() => handleSpeak(currentQuestion)}
+                  isReading={isReading}
+                  isAudioLoading={false}
+                  isAudioCached={true}
+                />
+              )}
+
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <button 
+                  onClick={() => { if(currentIndex > 0) setCurrentIndex(v => v-1); window.speechSynthesis.cancel(); }}
+                  disabled={currentIndex === 0}
+                  className="py-5 rounded-2xl bg-white border border-slate-200 text-slate-500 font-black text-sm hover:bg-slate-50 disabled:opacity-30 transition-all shadow-sm active:scale-95"
+                >
+                  VOLTAR
+                </button>
+                <button 
+                  onClick={next}
+                  disabled={!currentAnswer}
+                  className={`py-5 rounded-2xl font-black text-sm text-white shadow-xl shadow-blue-100 transition-all active:scale-95 ${currentAnswer ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}
+                >
+                  {currentIndex === filteredQuestions.length - 1 ? 'CONCLUIR' : 'PRÓXIMA'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full max-w-lg bg-white p-8 lg:p-12 rounded-[2.5rem] shadow-2xl shadow-slate-200 text-center animate-in zoom-in-95 duration-500 border border-slate-100">
+               <div className="w-20 h-20 bg-blue-600 text-white rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl rotate-3">
+                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+               </div>
+               <h2 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-tighter">Resultados</h2>
+               <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-10">Módulo: {activeModule}</p>
+               
+               <div className="grid grid-cols-2 gap-4 mb-10">
+                  <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
+                     <p className="text-emerald-600 text-4xl font-black">{stats.correct}</p>
+                     <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mt-1">Acertos</p>
+                  </div>
+                  <div className="bg-rose-50 p-6 rounded-3xl border border-rose-100">
+                     <p className="text-rose-600 text-4xl font-black">{stats.wrong}</p>
+                     <p className="text-[10px] font-bold text-rose-800 uppercase tracking-widest mt-1">Erros</p>
+                  </div>
+               </div>
+
+               <div className="space-y-3">
+                  {stats.wrong > 0 && (
+                    <button onClick={startReview} className="w-full py-5 rounded-2xl bg-amber-500 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-amber-100 active:scale-95 transition-all">
+                      Revisar Erros
+                    </button>
+                  )}
+                  <button onClick={() => { setShowFinished(false); setCurrentIndex(0); setIsReviewMode(false); }} className="w-full py-5 rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all">
+                    Tentar Novamente
+                  </button>
+               </div>
+            </div>
+          )}
+        </div>
+        
+        <footer className="p-6 text-center lg:text-right">
+           <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Professor Robson Sousa • Socioeducação</p>
+        </footer>
+      </main>
     </div>
   );
 };
