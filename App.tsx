@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { QUESTIONS } from './data';
-import { ModuleType, AnswerType, UserAnswer, Question } from './types';
-import { QuizCard } from './components/QuizCard';
+import { QUESTIONS } from './data.ts';
+import { ModuleType, AnswerType, UserAnswer, Question } from './types.ts';
+import { QuizCard } from './components/QuizCard.tsx';
 
 const STORAGE_KEY = 'seas_ce_quiz_progress_v1';
 const DB_NAME = 'SeasAudioCache';
@@ -77,10 +77,8 @@ const App: React.FC = () => {
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Filter logic: normal mode uses module filter, review mode uses wrong answers list
   const filteredQuestions = useMemo(() => {
     if (isReviewMode) {
-      // Find questions that were answered incorrectly, in the order they were answered
       const wrongAnswerIds = answers
         .filter(a => !a.isCorrect)
         .map(a => a.questionId);
@@ -95,16 +93,13 @@ const App: React.FC = () => {
   }, [activeModule, isReviewMode, answers]);
 
   const currentQuestion = filteredQuestions[currentIndex];
-  
-  // In review mode, we allow "redoing", so we check if the question has been answered *in the current review session*
-  // To keep it simple, we'll just check if the current question's most recent answer is correct
   const currentAnswer = useMemo(() => answers.find(a => a.questionId === currentQuestion?.id), [answers, currentQuestion]);
 
   const stats = useMemo(() => {
     const relevantQuestions = isReviewMode ? filteredQuestions : (activeModule === 'TODOS' ? QUESTIONS : QUESTIONS.filter(q => q.module === activeModule));
     const relevantAnswers = answers.filter(a => relevantQuestions.some(q => q.id === a.questionId));
     const correct = relevantAnswers.filter(a => a.isCorrect).length;
-    const progress = Math.round((relevantAnswers.length / relevantQuestions.length) * 100) || 0;
+    const progress = Math.round((relevantAnswers.length / (relevantQuestions.length || 1)) * 100) || 0;
     return { correct, wrong: relevantAnswers.length - correct, progress, total: relevantAnswers.length, remaining: relevantQuestions.length - relevantAnswers.length };
   }, [answers, filteredQuestions, activeModule, isReviewMode]);
 
@@ -207,8 +202,6 @@ const App: React.FC = () => {
   const handleAnswer = (answer: AnswerType) => {
     if (!currentQuestion) return;
     const isCorrect = answer === currentQuestion.answer;
-    
-    // In Review Mode, if they correct it, we update the answer in the global state
     setAnswers(prev => {
       const filtered = prev.filter(a => a.questionId !== currentQuestion.id);
       return [...filtered, { questionId: currentQuestion.id, answer, isCorrect }];
@@ -226,7 +219,6 @@ const App: React.FC = () => {
     setIsReviewMode(true);
     setCurrentIndex(0);
     setShowFinished(false);
-    // Explanations enabled by default in review mode as requested
     setExplanationEnabled(true);
   };
 
@@ -273,7 +265,7 @@ const App: React.FC = () => {
         {!showFinished ? (
           <>
             <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase">
-              <span>{isReviewMode ? 'Modo Revisão' : activeModule} • {currentIndex + 1}/{filteredQuestions.length}</span>
+              <span>{isReviewMode ? 'Modo Revisão' : activeModule} • {currentIndex + 1}/{(filteredQuestions.length || 1)}</span>
               <div className="flex gap-2">
                 <span className="text-emerald-600">C: {stats.correct}</span>
                 <span className="text-rose-600">E: {stats.wrong}</span>
@@ -300,16 +292,20 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <QuizCard 
-              question={currentQuestion} 
-              onAnswer={handleAnswer}
-              userAnswer={currentAnswer?.answer}
-              showExplanation={isReviewMode ? true : explanationEnabled}
-              onSpeak={() => handleSpeak(currentQuestion)}
-              isReading={isReading}
-              isAudioLoading={loadingAudioIds.has(currentQuestion?.id)}
-              isAudioCached={!!audioCache.current[currentQuestion?.id]}
-            />
+            {currentQuestion ? (
+              <QuizCard 
+                question={currentQuestion} 
+                onAnswer={handleAnswer}
+                userAnswer={currentAnswer?.answer}
+                showExplanation={isReviewMode ? true : explanationEnabled}
+                onSpeak={() => handleSpeak(currentQuestion)}
+                isReading={isReading}
+                isAudioLoading={loadingAudioIds.has(currentQuestion?.id)}
+                isAudioCached={!!audioCache.current[currentQuestion?.id]}
+              />
+            ) : (
+              <div className="text-center p-10 text-slate-400 font-bold uppercase text-xs">Nenhuma questão encontrada</div>
+            )}
 
             <div className="mt-auto grid grid-cols-2 gap-2 pt-2">
               <button 
@@ -337,7 +333,7 @@ const App: React.FC = () => {
               {isReviewMode ? 'Revisão Concluída' : 'Simulado Finalizado'}
             </h2>
             <div className="bg-white w-full p-6 rounded-2xl border mb-6 shadow-sm">
-              <p className={`text-4xl font-black ${isReviewMode ? 'text-amber-600' : 'text-blue-600'}`}>{Math.round((stats.correct/filteredQuestions.length)*100)}%</p>
+              <p className={`text-4xl font-black ${isReviewMode ? 'text-amber-600' : 'text-blue-600'}`}>{Math.round((stats.correct/(filteredQuestions.length || 1))*100)}%</p>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Aproveitamento</p>
               <div className="grid grid-cols-2 gap-4 mt-6">
                 <div>
