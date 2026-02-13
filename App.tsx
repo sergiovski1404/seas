@@ -43,7 +43,10 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   useEffect(() => {
-    const handler = (e: any) => { e.preventDefault(); setDeferredPrompt(e); };
+    const handler = (e: any) => { 
+      e.preventDefault(); 
+      setDeferredPrompt(e); 
+    };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
@@ -80,12 +83,13 @@ const App: React.FC = () => {
   }, [activeModule, answers, explanationEnabled]);
 
   const speak = useCallback((text: string) => {
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'pt-BR';
     utter.rate = 1.0;
     
-    const setVoice = () => {
+    const setVoiceAndSpeak = () => {
       const voices = window.speechSynthesis.getVoices();
       const voice = voices.find(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && v.lang.includes('pt-BR')) 
                  || voices.find(v => v.lang.includes('pt-BR'));
@@ -98,14 +102,18 @@ const App: React.FC = () => {
     utter.onerror = () => setIsReading(false);
 
     if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.onvoiceschanged = setVoice;
+      window.speechSynthesis.onvoiceschanged = setVoiceAndSpeak;
     } else {
-      setVoice();
+      setVoiceAndSpeak();
     }
   }, []);
 
   const handleSpeak = (q: Question) => {
-    if (isReading) { window.speechSynthesis.cancel(); setIsReading(false); return; }
+    if (isReading) { 
+      window.speechSynthesis.cancel(); 
+      setIsReading(false); 
+      return; 
+    }
     speak(`${q.text}. Dica: ${q.explanation || ''}`);
   };
 
@@ -115,7 +123,6 @@ const App: React.FC = () => {
     setAnswers(prev => [...prev.filter(a => a.questionId !== currentQuestion.id), { questionId: currentQuestion.id, answer, isCorrect }]);
   };
 
-  // Fix for error in App.tsx on line 209: Defined startReview to allow users to review questions they got wrong.
   const startReview = () => {
     setIsReviewMode(true);
     setCurrentIndex(0);
@@ -133,28 +140,56 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-100 dark:bg-slate-950 transition-colors duration-300">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-100 dark:bg-slate-950 transition-colors duration-300 overflow-x-hidden">
       {/* Sidebar / Header */}
       <aside className="lg:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 lg:h-screen lg:sticky lg:top-0 z-40 flex flex-col shadow-sm">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
+            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
             <h1 className="text-lg font-black dark:text-white uppercase tracking-tighter">SEAS Quiz</h1>
           </div>
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-            {isDarkMode ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 9H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.243 17.657l.707.707M7.757 3.636l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>}
+          <button 
+            onClick={() => setIsDarkMode(!isDarkMode)} 
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+            title="Alternar Tema"
+          >
+            {isDarkMode ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 9H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.243 17.657l.707.707M7.757 3.636l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            )}
           </button>
         </div>
 
         {deferredPrompt && (
-          <div className="p-4"><button onClick={handleInstall} className="w-full bg-emerald-500 text-white p-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-md">Instalar App</button></div>
+          <div className="p-4">
+            <button 
+              onClick={handleInstall} 
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Instalar App
+            </button>
+          </div>
         )}
 
         <nav className="p-4 flex-grow overflow-y-auto no-scrollbar">
           <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Módulos</h2>
           <div className="space-y-1">
             {['TODOS', ...Object.values(ModuleType)].map(mod => (
-              <button key={mod} onClick={() => { setActiveModule(mod as any); setCurrentIndex(0); setShowFinished(false); }} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeModule === mod ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+              <button 
+                key={mod} 
+                onClick={() => { setActiveModule(mod as any); setCurrentIndex(0); setShowFinished(false); setIsReviewMode(false); }} 
+                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeModule === mod && !isReviewMode ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              >
                 {mod === 'TODOS' ? 'Simulado Geral' : mod}
               </button>
             ))}
@@ -162,9 +197,19 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-2"><span>Progresso</span><span>{stats.progress}%</span></div>
-          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden"><div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${stats.progress}%`}}></div></div>
-          <button onClick={reset} className="w-full mt-4 text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline">Reiniciar Progresso</button>
+          <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-2">
+            <span>Progresso</span>
+            <span>{stats.progress}%</span>
+          </div>
+          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+            <div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${stats.progress}%`}}></div>
+          </div>
+          <button 
+            onClick={reset} 
+            className="w-full mt-4 text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline text-center"
+          >
+            Reiniciar Módulo
+          </button>
         </div>
       </aside>
 
@@ -174,13 +219,22 @@ const App: React.FC = () => {
           <div className="w-full max-w-3xl">
             <div className="flex justify-between items-end mb-8">
               <div>
-                <h2 className="text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tighter">Questão {currentIndex + 1}</h2>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Total de {filteredQuestions.length}</p>
+                <h2 className="text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                  {isReviewMode ? 'Revisão' : `Questão ${currentIndex + 1}`}
+                </h2>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
+                  {isReviewMode ? 'Focando nos erros' : `Total de ${filteredQuestions.length}`}
+                </p>
               </div>
-              <button onClick={() => setExplanationEnabled(!explanationEnabled)} className={`px-4 py-2 rounded-lg text-[10px] font-black border transition-all ${explanationEnabled ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'}`}>DICA {explanationEnabled ? 'ON' : 'OFF'}</button>
+              <button 
+                onClick={() => setExplanationEnabled(!explanationEnabled)} 
+                className={`px-4 py-2 rounded-lg text-[10px] font-black border transition-all ${explanationEnabled ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'}`}
+              >
+                DICA {explanationEnabled ? 'ON' : 'OFF'}
+              </button>
             </div>
 
-            {currentQuestion && (
+            {currentQuestion ? (
               <QuizCard 
                 question={currentQuestion} 
                 onAnswer={handleAnswer} 
@@ -191,32 +245,69 @@ const App: React.FC = () => {
                 isAudioLoading={false}
                 isAudioCached={false}
               />
+            ) : (
+               <div className="text-center p-12 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+                  <p className="text-slate-500 dark:text-slate-400 font-bold">Nenhuma questão encontrada para este modo.</p>
+                  <button onClick={() => {setIsReviewMode(false); setCurrentIndex(0);}} className="mt-4 text-blue-600 font-black uppercase text-xs">Voltar ao simulado</button>
+               </div>
             )}
 
             <div className="grid grid-cols-2 gap-4 mt-8">
-              <button onClick={() => setCurrentIndex(c => Math.max(0, c - 1))} disabled={currentIndex === 0} className="py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-2xl font-black text-sm disabled:opacity-30">VOLTAR</button>
-              <button onClick={() => currentIndex === filteredQuestions.length - 1 ? setShowFinished(true) : setCurrentIndex(c => c + 1)} disabled={!currentAnswer} className={`py-5 text-white rounded-2xl font-black text-sm shadow-xl transition-all ${currentAnswer ? 'bg-blue-600 shadow-blue-200 dark:shadow-none' : 'bg-slate-300 dark:bg-slate-800'}`}>
+              <button 
+                onClick={() => { setCurrentIndex(c => Math.max(0, c - 1)); window.speechSynthesis.cancel(); }} 
+                disabled={currentIndex === 0} 
+                className="py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-2xl font-black text-sm disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95"
+              >
+                VOLTAR
+              </button>
+              <button 
+                onClick={() => { 
+                  if (currentIndex === filteredQuestions.length - 1) setShowFinished(true); 
+                  else setCurrentIndex(c => c + 1);
+                  window.speechSynthesis.cancel();
+                }} 
+                disabled={!currentAnswer} 
+                className={`py-5 text-white rounded-2xl font-black text-sm shadow-xl transition-all active:scale-95 ${currentAnswer ? 'bg-blue-600 shadow-blue-200 dark:shadow-none hover:bg-blue-700' : 'bg-slate-300 dark:bg-slate-800 text-slate-400'}`}
+              >
                 {currentIndex === filteredQuestions.length - 1 ? 'FINALIZAR' : 'PRÓXIMA'}
               </button>
             </div>
           </div>
         ) : (
-          <div className="w-full max-lg:max-w-md lg:max-w-lg bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95">
-            <div className="w-20 h-20 bg-emerald-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200 dark:shadow-none"><svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95">
+            <div className="w-20 h-20 bg-emerald-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200 dark:shadow-none">
+              <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
             <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Simulado Concluído</h2>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Módulo: {activeModule}</p>
+            
             <div className="grid grid-cols-2 gap-4 my-8">
               <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-900/30">
-                <p className="text-emerald-600 text-4xl font-black">{stats.correct}</p>
-                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest mt-1">Acertos</p>
+                <p className="text-emerald-600 dark:text-emerald-400 text-4xl font-black">{stats.correct}</p>
+                <p className="text-[10px] font-bold text-emerald-800 dark:text-emerald-500 uppercase tracking-widest mt-1">Acertos</p>
               </div>
               <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-3xl border border-rose-100 dark:border-rose-900/30">
-                <p className="text-rose-600 text-4xl font-black">{stats.wrong}</p>
-                <p className="text-[10px] font-bold text-rose-800 uppercase tracking-widest mt-1">Erros</p>
+                <p className="text-rose-600 dark:text-rose-400 text-4xl font-black">{stats.wrong}</p>
+                <p className="text-[10px] font-bold text-rose-800 dark:text-rose-500 uppercase tracking-widest mt-1">Erros</p>
               </div>
             </div>
             <div className="space-y-3">
-              {stats.wrong > 0 && <button onClick={startReview} className="w-full py-5 bg-amber-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg">Revisar Erros</button>}
-              <button onClick={() => { setShowFinished(false); setCurrentIndex(0); setIsReviewMode(false); }} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg">Reiniciar Simulado</button>
+              {stats.wrong > 0 && (
+                <button 
+                  onClick={startReview} 
+                  className="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all active:scale-95"
+                >
+                  Revisar Erros
+                </button>
+              )}
+              <button 
+                onClick={() => { setShowFinished(false); setCurrentIndex(0); setIsReviewMode(false); }} 
+                className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all active:scale-95"
+              >
+                Reiniciar Simulado
+              </button>
             </div>
           </div>
         )}

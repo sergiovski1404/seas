@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="no-scrollbar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -53,9 +53,19 @@
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
+      // Registro de Service Worker mais resiliente para ambientes de sandbox
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW Error:', err));
+          // Usando caminho relativo direto para evitar problemas de origem em previews
+          const swPath = 'sw.js';
+          navigator.serviceWorker.register(swPath)
+            .then(registration => {
+              console.log('SW registrado em:', registration.scope);
+            })
+            .catch(err => {
+              // Apenas logar o erro sem interromper a execução do app principal
+              console.warn('Registro de Service Worker ignorado (ambiente restrito):', err.message);
+            });
         });
       }
     </script>
