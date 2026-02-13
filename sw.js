@@ -1,47 +1,26 @@
 
-const CACHE_NAME = 'seas-quiz-v2';
+const CACHE_NAME = 'seas-quiz-v4';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/index.tsx',
-  '/App.tsx',
-  '/data.ts',
-  '/types.ts',
-  '/components/QuizCard.tsx'
+  './',
+  './index.html',
+  './index.tsx',
+  './App.tsx',
+  './data.ts',
+  './types.ts',
+  './manifest.json'
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
-    })
-  );
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
-  );
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => k !== CACHE_NAME && caches.delete(k)))));
 });
 
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
-      return fetch(event.request).then((networkResponse) => {
-        return caches.open(CACHE_NAME).then((cache) => {
-          // Não cachear chamadas da API Gemini ou recursos externos dinâmicos aqui
-          if (event.request.url.startsWith(self.location.origin)) {
-            cache.put(event.request, networkResponse.clone());
-          }
-          return networkResponse;
-        });
-      });
-    })
+self.addEventListener('fetch', (e) => {
+  e.respondWith(
+    caches.match(e.request).then(res => res || fetch(e.request))
   );
 });

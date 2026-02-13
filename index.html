@@ -17,19 +17,25 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+          }
+        }
+      }
+    </script>
     <style>
         body { 
-          font-family: 'Inter', sans-serif; 
           -webkit-tap-highlight-color: transparent;
-          background-color: #f1f5f9;
-          color: #1e293b;
           overscroll-behavior-y: contain;
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        .fade-enter { opacity: 0; transform: translateY(10px); }
-        .fade-enter-active { opacity: 1; transform: translateY(0); transition: all 300ms ease-out; }
     </style>
 <script type="importmap">
 {
@@ -43,15 +49,13 @@
 }
 </script>
 </head>
-<body class="overflow-x-hidden">
+<body class="bg-slate-100 dark:bg-slate-950 transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SW registrado com sucesso'))
-            .catch(err => console.log('Erro ao registrar SW:', err));
+          navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW Error:', err));
         });
       }
     </script>
