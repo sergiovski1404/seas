@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { QUESTIONS } from './data.ts';
-import { ModuleType, AnswerType, UserAnswer, Question } from './types.ts';
-import { QuizCard } from './components/QuizCard.tsx';
+import { QUESTIONS } from './data';
+import { ModuleType, AnswerType, UserAnswer, Question } from './types';
+import { QuizCard } from './components/QuizCard';
 
 const STORAGE_KEY = 'seas_ce_app_data_v4';
 const THEME_KEY = 'seas_ce_theme_v4';
@@ -78,15 +78,11 @@ const App: React.FC = () => {
     return { correct, wrong: relevantA.length - correct, progress, total: relevantQ.length };
   }, [answers, filteredQuestions, activeModule, isReviewMode]);
 
-  // Cálculo de precisão por módulo para a sidebar
   const moduleStats = useMemo(() => {
     const results: Record<string, number> = {};
-    
-    // Geral
     const totalCorrect = answers.filter(a => a.isCorrect).length;
     results['TODOS'] = Math.round((totalCorrect / QUESTIONS.length) * 100);
 
-    // Por módulo
     Object.values(ModuleType).forEach(mod => {
       const modQuestions = QUESTIONS.filter(q => q.module === mod);
       const modAnswers = answers.filter(a => modQuestions.some(q => q.id === a.questionId) && a.isCorrect);
@@ -166,7 +162,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-slate-100 dark:bg-slate-950 transition-colors duration-300 overflow-x-hidden">
-      {/* Sidebar / Header */}
       <aside className="lg:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 lg:h-screen lg:sticky lg:top-0 z-40 flex flex-col shadow-sm">
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -180,7 +175,6 @@ const App: React.FC = () => {
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)} 
             className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-            title="Alternar Tema"
           >
             {isDarkMode ? (
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,20 +188,7 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {deferredPrompt && (
-          <div className="p-4">
-            <button 
-              onClick={handleInstall} 
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              Instalar App
-            </button>
-          </div>
-        )}
-
         <nav className="p-4 flex-grow overflow-y-auto no-scrollbar">
-          {/* SIMULADO GERAL */}
           <div className="mb-6">
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Geral</h2>
             <button 
@@ -221,14 +202,12 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          {/* PROGRESSO POR MÓDULO */}
           <div>
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Progresso por Módulo</h2>
             <div className="space-y-1.5">
               {Object.values(ModuleType).map(mod => {
                 const accuracy = moduleStats[mod] || 0;
                 const isActive = activeModule === mod && !isReviewMode;
-                
                 return (
                   <button 
                     key={mod} 
@@ -248,22 +227,16 @@ const App: React.FC = () => {
 
         <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
           <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-2">
-            <span>Aproveitamento do Módulo</span>
+            <span>Aproveitamento</span>
             <span className="text-blue-600 dark:text-blue-400 font-black">{stats.progress}%</span>
           </div>
           <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
             <div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${stats.progress}%`}}></div>
           </div>
-          <button 
-            onClick={reset} 
-            className="w-full mt-4 text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline text-center"
-          >
-            Limpar Módulo Atual
-          </button>
+          <button onClick={reset} className="w-full mt-4 text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline text-center">Limpar Módulo Atual</button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-grow flex flex-col p-4 lg:p-12 items-center justify-center">
         {!showFinished ? (
           <div className="w-full max-w-3xl">
@@ -273,14 +246,14 @@ const App: React.FC = () => {
                   {isReviewMode ? 'Revisão' : `Questão ${currentIndex + 1}`}
                 </h2>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
-                  {isReviewMode ? 'Focando nos seus erros' : `${activeModule === 'TODOS' ? 'Simulado Geral' : activeModule} — ${currentIndex + 1} de ${filteredQuestions.length}`}
+                  {isReviewMode ? 'Focando nos erros' : `${activeModule} — ${currentIndex + 1} de ${filteredQuestions.length}`}
                 </p>
               </div>
               <button 
                 onClick={() => setExplanationEnabled(!explanationEnabled)} 
                 className={`px-4 py-2 rounded-lg text-[10px] font-black border transition-all ${explanationEnabled ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'}`}
               >
-                EXPLICAÇÃO {explanationEnabled ? 'ON' : 'OFF'}
+                DICA {explanationEnabled ? 'ON' : 'OFF'}
               </button>
             </div>
 
@@ -297,67 +270,32 @@ const App: React.FC = () => {
               />
             ) : (
                <div className="text-center p-12 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                  <p className="text-slate-500 dark:text-slate-400 font-bold">Nenhuma questão disponível para este critério.</p>
-                  <button onClick={() => {setIsReviewMode(false); setCurrentIndex(0);}} className="mt-4 text-blue-600 font-black uppercase text-xs">Voltar ao simulado</button>
+                  <p className="text-slate-500 dark:text-slate-400 font-bold">Sem questões aqui.</p>
+                  <button onClick={() => {setIsReviewMode(false); setCurrentIndex(0);}} className="mt-4 text-blue-600 font-black uppercase text-xs">Voltar</button>
                </div>
             )}
 
             <div className="grid grid-cols-2 gap-4 mt-8">
-              <button 
-                onClick={() => { setCurrentIndex(c => Math.max(0, c - 1)); window.speechSynthesis.cancel(); }} 
-                disabled={currentIndex === 0} 
-                className="py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-2xl font-black text-sm disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95 shadow-sm"
-              >
-                ANTERIOR
-              </button>
-              <button 
-                onClick={() => { 
-                  if (currentIndex === filteredQuestions.length - 1) setShowFinished(true); 
-                  else setCurrentIndex(c => c + 1);
-                  window.speechSynthesis.cancel();
-                }} 
-                disabled={!currentAnswer} 
-                className={`py-5 text-white rounded-2xl font-black text-sm shadow-xl transition-all active:scale-95 ${currentAnswer ? 'bg-blue-600 shadow-blue-200 dark:shadow-none hover:bg-blue-700' : 'bg-slate-300 dark:bg-slate-800 text-slate-400'}`}
-              >
-                {currentIndex === filteredQuestions.length - 1 ? 'CONCLUIR' : 'PRÓXIMA'}
-              </button>
+              <button onClick={() => { setCurrentIndex(c => Math.max(0, c - 1)); window.speechSynthesis.cancel(); }} disabled={currentIndex === 0} className="py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-2xl font-black text-sm disabled:opacity-30">ANTERIOR</button>
+              <button onClick={() => { if (currentIndex === filteredQuestions.length - 1) setShowFinished(true); else setCurrentIndex(c => c + 1); window.speechSynthesis.cancel(); }} disabled={!currentAnswer} className={`py-5 text-white rounded-2xl font-black text-sm ${currentAnswer ? 'bg-blue-600' : 'bg-slate-300'}`}>{currentIndex === filteredQuestions.length - 1 ? 'CONCLUIR' : 'PRÓXIMA'}</button>
             </div>
           </div>
         ) : (
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95">
-            <div className="w-20 h-20 bg-emerald-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200 dark:shadow-none">
-              <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
             <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Parabéns!</h2>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Você concluiu o módulo {activeModule}</p>
-            
             <div className="grid grid-cols-2 gap-4 my-8">
-              <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-900/30">
-                <p className="text-emerald-600 dark:text-emerald-400 text-4xl font-black">{stats.correct}</p>
-                <p className="text-[10px] font-bold text-emerald-800 dark:text-emerald-500 uppercase tracking-widest mt-1">Acertos</p>
+              <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-3xl">
+                <p className="text-emerald-600 text-4xl font-black">{stats.correct}</p>
+                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">Acertos</p>
               </div>
-              <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-3xl border border-rose-100 dark:border-rose-900/30">
-                <p className="text-rose-600 dark:text-rose-400 text-4xl font-black">{stats.wrong}</p>
-                <p className="text-[10px] font-bold text-rose-800 dark:text-rose-500 uppercase tracking-widest mt-1">Erros</p>
+              <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-3xl">
+                <p className="text-rose-600 text-4xl font-black">{stats.wrong}</p>
+                <p className="text-[10px] font-bold text-rose-800 uppercase tracking-widest">Erros</p>
               </div>
             </div>
             <div className="space-y-3">
-              {stats.wrong > 0 && (
-                <button 
-                  onClick={startReview} 
-                  className="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all active:scale-95"
-                >
-                  Revisar Apenas Erros
-                </button>
-              )}
-              <button 
-                onClick={() => { setShowFinished(false); setCurrentIndex(0); setIsReviewMode(false); }} 
-                className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all active:scale-95"
-              >
-                Novo Simulado
-              </button>
+              {stats.wrong > 0 && <button onClick={startReview} className="w-full py-5 bg-amber-500 text-white rounded-2xl font-black text-sm uppercase">Revisar Erros</button>}
+              <button onClick={() => { setShowFinished(false); setCurrentIndex(0); setIsReviewMode(false); }} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase">Reiniciar Módulo</button>
             </div>
           </div>
         )}

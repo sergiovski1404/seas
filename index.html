@@ -25,7 +25,7 @@
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        /* Estilo para o estado de carregamento inicial */
+        
         #root:empty::before {
           content: 'Iniciando Simulado...';
           display: flex;
@@ -63,16 +63,15 @@
 <body class="bg-slate-100 dark:bg-slate-950 transition-colors duration-300">
     <div id="root"></div>
     
-    <!-- Entrada principal para o Vite -->
+    <!-- Ponto de entrada único para o Vite -->
     <script type="module" src="./index.tsx"></script>
 
     <script>
-      // Registro do Service Worker de forma segura
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js')
             .then(reg => console.log('Socioeducação Offline: OK'))
-            .catch(err => console.debug('Offline desativado em ambiente de desenvolvimento'));
+            .catch(err => console.debug('SW ignorado'));
         });
       }
     </script>
