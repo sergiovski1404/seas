@@ -2,12 +2,19 @@
 {
   "name": "Simulado Socioeducação SEAS-CE",
   "short_name": "SEAS Quiz",
-  "description": "Simulado completo para o concurso SEAS-CE com 230 questões comentadas.",
-  "start_url": "/",
+  "description": "Simulado completo para o concurso SEAS-CE com 230 questões comentadas do Prof. Robson Sousa.",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "orientation": "portrait-primary",
+  "background_color": "#f1f5f9",
   "theme_color": "#2563eb",
   "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3407/3407154.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3407/3407154.png",
       "sizes": "512x512",

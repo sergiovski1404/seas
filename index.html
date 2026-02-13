@@ -11,6 +11,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SEAS Quiz">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3407/3407154.png">
     <link rel="manifest" href="manifest.json">
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,11 +23,11 @@
           -webkit-tap-highlight-color: transparent;
           background-color: #f1f5f9;
           color: #1e293b;
+          overscroll-behavior-y: contain;
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Ajuste suave de transição */
         .fade-enter { opacity: 0; transform: translateY(10px); }
         .fade-enter-active { opacity: 1; transform: translateY(0); transition: all 300ms ease-out; }
     </style>
@@ -44,5 +46,14 @@
 <body class="overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW registrado com sucesso'))
+            .catch(err => console.log('Erro ao registrar SW:', err));
+        });
+      }
+    </script>
 </body>
 </html>

@@ -28,6 +28,33 @@ const App: React.FC = () => {
   const [explanationEnabled, setExplanationEnabled] = useState(true);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [isReading, setIsReading] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Lógica para PWA Install Button
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    
+    // Verifica se já está instalado
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setDeferredPrompt(null);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   const filteredQuestions = useMemo(() => {
     if (isReviewMode) {
@@ -54,14 +81,12 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeModule, answers, explanationEnabled }));
   }, [activeModule, answers, explanationEnabled]);
 
-  // Função para Voz Humana Gratuita (Microsoft/Google)
   const speakNative = (text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'pt-BR';
     utterance.rate = 1.0;
     
-    // Busca vozes "Microsoft" ou "Neural" no sistema
     const voices = window.speechSynthesis.getVoices();
     const premiumVoice = voices.find(v => 
       (v.name.includes('Microsoft') || v.name.includes('Neural') || v.name.includes('Google')) && v.lang.includes('pt-BR')
@@ -82,7 +107,12 @@ const App: React.FC = () => {
       setIsReading(false);
       return;
     }
-    speakNative(q.text);
+    handleSpeakQuestion(q);
+  };
+
+  const handleSpeakQuestion = (q: Question) => {
+    const textToSpeak = `${q.text}. Resposta correta: ${q.answer === AnswerType.CORRETO ? 'Certo' : 'Errado'}. Dica: ${q.explanation || ''}`;
+    speakNative(textToSpeak);
   };
 
   const handleAnswer = (answer: AnswerType) => {
@@ -130,7 +160,19 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Estatísticas na Sidebar (Desktop) */}
+        {/* Botão de Instalação PWA na Sidebar */}
+        {deferredPrompt && (
+          <div className="px-4 pt-4">
+            <button 
+              onClick={handleInstallClick}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              Instalar Aplicativo
+            </button>
+          </div>
+        )}
+
         <div className="hidden lg:block p-6 bg-slate-50/50">
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Seu Desempenho</h2>
           <div className="space-y-4">
@@ -156,7 +198,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Seleção de Módulos */}
         <nav className="p-4 flex-grow overflow-y-auto no-scrollbar">
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Módulos</h2>
           <div className="space-y-1">
@@ -180,18 +221,22 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Área Principal */}
       <main className="flex-grow flex flex-col relative min-h-screen">
-        {/* Header Mobile Only */}
         <header className="lg:hidden bg-white border-b p-4 flex justify-between items-center sticky top-0 z-50">
-           <span className="text-sm font-black text-slate-900">{activeModule === 'TODOS' ? 'Geral' : activeModule}</span>
-           <div className="flex gap-2">
-              <span className="text-[10px] font-black text-emerald-600">C: {stats.correct}</span>
-              <span className="text-[10px] font-black text-rose-500">E: {stats.wrong}</span>
+           <span className="text-sm font-black text-slate-900 truncate max-w-[150px]">{activeModule === 'TODOS' ? 'Geral' : activeModule}</span>
+           <div className="flex gap-3 items-center">
+              {deferredPrompt && (
+                <button onClick={handleInstallClick} className="bg-emerald-100 text-emerald-700 p-2 rounded-lg active:scale-90 transition-all">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                </button>
+              )}
+              <div className="flex gap-2 bg-slate-50 px-2 py-1 rounded-md border">
+                 <span className="text-[10px] font-black text-emerald-600">C:{stats.correct}</span>
+                 <span className="text-[10px] font-black text-rose-500">E:{stats.wrong}</span>
+              </div>
            </div>
         </header>
 
-        {/* Barra de Progresso Mobile */}
         <div className="lg:hidden w-full h-1 bg-slate-100">
            <div className="h-full bg-blue-600 transition-all duration-500" style={{ width: `${stats.progress}%` }}></div>
         </div>
@@ -202,7 +247,7 @@ const App: React.FC = () => {
               <div className="mb-6 flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">Questão {currentIndex + 1}</h2>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">De {filteredQuestions.length} questões no total</p>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">De {filteredQuestions.length} questões</p>
                 </div>
                 <button 
                   onClick={() => setExplanationEnabled(!explanationEnabled)}
