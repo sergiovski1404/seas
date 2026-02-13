@@ -78,6 +78,24 @@ const App: React.FC = () => {
     return { correct, wrong: relevantA.length - correct, progress, total: relevantQ.length };
   }, [answers, filteredQuestions, activeModule, isReviewMode]);
 
+  // Cálculo de precisão por módulo para a sidebar
+  const moduleStats = useMemo(() => {
+    const results: Record<string, number> = {};
+    
+    // Geral
+    const totalCorrect = answers.filter(a => a.isCorrect).length;
+    results['TODOS'] = Math.round((totalCorrect / QUESTIONS.length) * 100);
+
+    // Por módulo
+    Object.values(ModuleType).forEach(mod => {
+      const modQuestions = QUESTIONS.filter(q => q.module === mod);
+      const modAnswers = answers.filter(a => modQuestions.some(q => q.id === a.questionId) && a.isCorrect);
+      results[mod] = Math.round((modAnswers.length / modQuestions.length) * 100);
+    });
+
+    return results;
+  }, [answers]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeModule, answers, explanationEnabled }));
   }, [activeModule, answers, explanationEnabled]);
@@ -130,13 +148,20 @@ const App: React.FC = () => {
   };
 
   const reset = () => {
-    if (confirm("Reiniciar este módulo?")) {
+    if (confirm("Deseja realmente resetar seu progresso neste módulo?")) {
       const qIds = filteredQuestions.map(q => q.id);
       setAnswers(prev => prev.filter(a => !qIds.includes(a.questionId)));
       setCurrentIndex(0);
       setShowFinished(false);
       setIsReviewMode(false);
     }
+  };
+
+  const getAccuracyColor = (accuracy: number, active: boolean) => {
+    if (active) return 'bg-white/20 text-white';
+    if (accuracy >= 80) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+    if (accuracy >= 50) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+    return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
   };
 
   return (
@@ -182,24 +207,49 @@ const App: React.FC = () => {
         )}
 
         <nav className="p-4 flex-grow overflow-y-auto no-scrollbar">
-          <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Módulos</h2>
-          <div className="space-y-1">
-            {['TODOS', ...Object.values(ModuleType)].map(mod => (
-              <button 
-                key={mod} 
-                onClick={() => { setActiveModule(mod as any); setCurrentIndex(0); setShowFinished(false); setIsReviewMode(false); }} 
-                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeModule === mod && !isReviewMode ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-              >
-                {mod === 'TODOS' ? 'Simulado Geral' : mod}
-              </button>
-            ))}
+          {/* SIMULADO GERAL */}
+          <div className="mb-6">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Geral</h2>
+            <button 
+              onClick={() => { setActiveModule('TODOS'); setCurrentIndex(0); setShowFinished(false); setIsReviewMode(false); }} 
+              className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group ${activeModule === 'TODOS' && !isReviewMode ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+            >
+              <span className="text-sm font-bold truncate pr-2">Simulado Completo</span>
+              <div className={`text-[10px] font-black px-2 py-0.5 rounded-md ${activeModule === 'TODOS' ? 'bg-white/20 text-white' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'}`}>
+                {moduleStats['TODOS']}%
+              </div>
+            </button>
+          </div>
+
+          {/* PROGRESSO POR MÓDULO */}
+          <div>
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Progresso por Módulo</h2>
+            <div className="space-y-1.5">
+              {Object.values(ModuleType).map(mod => {
+                const accuracy = moduleStats[mod] || 0;
+                const isActive = activeModule === mod && !isReviewMode;
+                
+                return (
+                  <button 
+                    key={mod} 
+                    onClick={() => { setActiveModule(mod); setCurrentIndex(0); setShowFinished(false); setIsReviewMode(false); }} 
+                    className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group ${isActive ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  >
+                    <span className="text-sm font-bold truncate pr-2">{mod}</span>
+                    <div className={`text-[10px] font-black px-2 py-0.5 rounded-md transition-colors ${getAccuracyColor(accuracy, isActive)}`}>
+                      {accuracy}%
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </nav>
 
         <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
           <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-2">
-            <span>Progresso</span>
-            <span>{stats.progress}%</span>
+            <span>Aproveitamento do Módulo</span>
+            <span className="text-blue-600 dark:text-blue-400 font-black">{stats.progress}%</span>
           </div>
           <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
             <div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${stats.progress}%`}}></div>
@@ -208,7 +258,7 @@ const App: React.FC = () => {
             onClick={reset} 
             className="w-full mt-4 text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline text-center"
           >
-            Reiniciar Módulo
+            Limpar Módulo Atual
           </button>
         </div>
       </aside>
@@ -223,14 +273,14 @@ const App: React.FC = () => {
                   {isReviewMode ? 'Revisão' : `Questão ${currentIndex + 1}`}
                 </h2>
                 <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
-                  {isReviewMode ? 'Focando nos erros' : `Total de ${filteredQuestions.length}`}
+                  {isReviewMode ? 'Focando nos seus erros' : `${activeModule === 'TODOS' ? 'Simulado Geral' : activeModule} — ${currentIndex + 1} de ${filteredQuestions.length}`}
                 </p>
               </div>
               <button 
                 onClick={() => setExplanationEnabled(!explanationEnabled)} 
-                className={`px-4 py-2 rounded-lg text-[10px] font-black border transition-all ${explanationEnabled ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'}`}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black border transition-all ${explanationEnabled ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'}`}
               >
-                DICA {explanationEnabled ? 'ON' : 'OFF'}
+                EXPLICAÇÃO {explanationEnabled ? 'ON' : 'OFF'}
               </button>
             </div>
 
@@ -247,7 +297,7 @@ const App: React.FC = () => {
               />
             ) : (
                <div className="text-center p-12 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                  <p className="text-slate-500 dark:text-slate-400 font-bold">Nenhuma questão encontrada para este modo.</p>
+                  <p className="text-slate-500 dark:text-slate-400 font-bold">Nenhuma questão disponível para este critério.</p>
                   <button onClick={() => {setIsReviewMode(false); setCurrentIndex(0);}} className="mt-4 text-blue-600 font-black uppercase text-xs">Voltar ao simulado</button>
                </div>
             )}
@@ -256,9 +306,9 @@ const App: React.FC = () => {
               <button 
                 onClick={() => { setCurrentIndex(c => Math.max(0, c - 1)); window.speechSynthesis.cancel(); }} 
                 disabled={currentIndex === 0} 
-                className="py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-2xl font-black text-sm disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95"
+                className="py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-2xl font-black text-sm disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors active:scale-95 shadow-sm"
               >
-                VOLTAR
+                ANTERIOR
               </button>
               <button 
                 onClick={() => { 
@@ -269,7 +319,7 @@ const App: React.FC = () => {
                 disabled={!currentAnswer} 
                 className={`py-5 text-white rounded-2xl font-black text-sm shadow-xl transition-all active:scale-95 ${currentAnswer ? 'bg-blue-600 shadow-blue-200 dark:shadow-none hover:bg-blue-700' : 'bg-slate-300 dark:bg-slate-800 text-slate-400'}`}
               >
-                {currentIndex === filteredQuestions.length - 1 ? 'FINALIZAR' : 'PRÓXIMA'}
+                {currentIndex === filteredQuestions.length - 1 ? 'CONCLUIR' : 'PRÓXIMA'}
               </button>
             </div>
           </div>
@@ -280,8 +330,8 @@ const App: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Simulado Concluído</h2>
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Módulo: {activeModule}</p>
+            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Parabéns!</h2>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Você concluiu o módulo {activeModule}</p>
             
             <div className="grid grid-cols-2 gap-4 my-8">
               <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-900/30">
@@ -299,14 +349,14 @@ const App: React.FC = () => {
                   onClick={startReview} 
                   className="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all active:scale-95"
                 >
-                  Revisar Erros
+                  Revisar Apenas Erros
                 </button>
               )}
               <button 
                 onClick={() => { setShowFinished(false); setCurrentIndex(0); setIsReviewMode(false); }} 
                 className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all active:scale-95"
               >
-                Reiniciar Simulado
+                Novo Simulado
               </button>
             </div>
           </div>
