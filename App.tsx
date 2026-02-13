@@ -13,7 +13,9 @@ const getDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore(STORE_NAME);
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        request.result.createObjectStore(STORE_NAME);
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -47,9 +49,7 @@ const App: React.FC = () => {
   const [activeModule, setActiveModule] = useState<ModuleType | 'TODOS'>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      try {
-        return JSON.parse(saved).activeModule || 'TODOS';
-      } catch (e) { return 'TODOS'; }
+      try { return JSON.parse(saved).activeModule || 'TODOS'; } catch (e) { return 'TODOS'; }
     }
     return 'TODOS';
   });
@@ -58,9 +58,7 @@ const App: React.FC = () => {
   const [answers, setAnswers] = useState<UserAnswer[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      try {
-        return JSON.parse(saved).answers || [];
-      } catch (e) { return []; }
+      try { return JSON.parse(saved).answers || []; } catch (e) { return []; }
     }
     return [];
   });
@@ -69,8 +67,8 @@ const App: React.FC = () => {
   const [explanationEnabled, setExplanationEnabled] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number>(0);
+  
   const [isReading, setIsReading] = useState(false);
   const [loadingAudioIds, setLoadingAudioIds] = useState<Set<number>>(new Set());
   const audioCache = useRef<Record<number, AudioBuffer>>({});
@@ -79,15 +77,9 @@ const App: React.FC = () => {
 
   const filteredQuestions = useMemo(() => {
     if (isReviewMode) {
-      const wrongAnswerIds = answers
-        .filter(a => !a.isCorrect)
-        .map(a => a.questionId);
-      
-      return wrongAnswerIds
-        .map(id => QUESTIONS.find(q => q.id === id))
-        .filter((q): q is Question => !!q);
+      const wrongAnswerIds = answers.filter(a => !a.isCorrect).map(a => a.questionId);
+      return wrongAnswerIds.map(id => QUESTIONS.find(q => q.id === id)).filter((q): q is Question => !!q);
     }
-
     const q = activeModule === 'TODOS' ? QUESTIONS : QUESTIONS.filter(q => q.module === activeModule);
     return [...q].sort((a, b) => a.id - b.id);
   }, [activeModule, isReviewMode, answers]);
@@ -100,7 +92,7 @@ const App: React.FC = () => {
     const relevantAnswers = answers.filter(a => relevantQuestions.some(q => q.id === a.questionId));
     const correct = relevantAnswers.filter(a => a.isCorrect).length;
     const progress = Math.round((relevantAnswers.length / (relevantQuestions.length || 1)) * 100) || 0;
-    return { correct, wrong: relevantAnswers.length - correct, progress, total: relevantAnswers.length, remaining: relevantQuestions.length - relevantAnswers.length };
+    return { correct, wrong: relevantAnswers.length - correct, progress, total: relevantAnswers.length };
   }, [answers, filteredQuestions, activeModule, isReviewMode]);
 
   useEffect(() => {
@@ -112,25 +104,16 @@ const App: React.FC = () => {
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    });
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  const installApp = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setDeferredPrompt(null);
-  };
-
   const fetchAudio = async (q: Question) => {
     if (audioCache.current[q.id] || loadingAudioIds.has(q.id)) return;
+    if (Date.now() < rateLimitedUntil) return;
+
     try {
       const db = await getDB();
       const transaction = db.transaction(STORE_NAME, 'readonly');
@@ -148,6 +131,7 @@ const App: React.FC = () => {
     } catch (e) {}
 
     if (isOffline) return;
+
     setLoadingAudioIds(prev => new Set(prev).add(q.id));
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -156,27 +140,40 @@ const App: React.FC = () => {
         contents: [{ parts: [{ text: q.text }] }],
         config: { responseModalities: [Modality.AUDIO], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } } }
       });
+
       const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (!base64) return;
       const audioData = decodeBase64(base64);
       if (!audioContextRef.current) audioContextRef.current = new AudioContext({ sampleRate: 24000 });
       audioCache.current[q.id] = await decodeRawPcm(audioData, audioContextRef.current, 24000, 1);
+      
       const db = await getDB();
       const transaction = db.transaction(STORE_NAME, 'readwrite');
       transaction.objectStore(STORE_NAME).put(audioData, q.id);
-    } catch (e) { console.error(e); } finally {
+    } catch (e: any) {
+      if (e.message?.includes('429')) {
+        console.warn("Limite de cota atingido (429). Pausando requisições de áudio por 15s.");
+        setRateLimitedUntil(Date.now() + 15000);
+      }
+      console.error("Audio error:", e);
+    } finally {
       setLoadingAudioIds(prev => { const n = new Set(prev); n.delete(q.id); return n; });
     }
   };
 
   useEffect(() => {
     if (showFinished || !currentQuestion) return;
-    fetchAudio(currentQuestion);
-    for (let i = 1; i <= 2; i++) {
-      const nextQ = filteredQuestions[currentIndex + i];
+    
+    // Timer para evitar disparos frenéticos ao mudar de questão
+    const timeout = setTimeout(() => {
+      fetchAudio(currentQuestion);
+      // Pré-carrega apenas a PRÓXIMA questão para economizar cota
+      const nextQ = filteredQuestions[currentIndex + 1];
       if (nextQ) fetchAudio(nextQ);
-    }
-  }, [currentIndex, filteredQuestions, showFinished]);
+    }, 800);
+
+    return () => clearTimeout(timeout);
+  }, [currentIndex, filteredQuestions, showFinished, rateLimitedUntil]);
 
   const handleSpeak = async (q: Question) => {
     if (isReading) {
@@ -186,8 +183,13 @@ const App: React.FC = () => {
     }
     if (!audioContextRef.current) audioContextRef.current = new AudioContext({ sampleRate: 24000 });
     if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
+    
     let buffer = audioCache.current[q.id];
-    if (!buffer) { await fetchAudio(q); buffer = audioCache.current[q.id]; }
+    if (!buffer) {
+      await fetchAudio(q);
+      buffer = audioCache.current[q.id];
+    }
+
     if (buffer && audioContextRef.current) {
       const source = audioContextRef.current.createBufferSource();
       source.buffer = buffer;
@@ -215,13 +217,6 @@ const App: React.FC = () => {
     setIsReading(false);
   };
 
-  const startReview = () => {
-    setIsReviewMode(true);
-    setCurrentIndex(0);
-    setShowFinished(false);
-    setExplanationEnabled(true);
-  };
-
   const resetQuiz = () => {
     setAnswers([]);
     setCurrentIndex(0);
@@ -242,12 +237,9 @@ const App: React.FC = () => {
             <h1 className="text-sm font-black text-slate-900 uppercase tracking-tighter leading-none">
               {isReviewMode ? 'Revisão' : 'SEAS-CE'}
             </h1>
-            {isOffline && <span className="text-[8px] font-bold text-amber-600 uppercase tracking-widest">Offline</span>}
           </div>
         </div>
-        
         <div className="flex items-center gap-2">
-          {deferredPrompt && <button onClick={installApp} className="text-[10px] bg-emerald-500 text-white px-2 py-1 rounded-md font-bold">BAIXAR</button>}
           <button 
             onClick={() => setExplanationEnabled(!explanationEnabled)}
             className={`text-[10px] font-bold px-2 py-1 rounded-md border transition-colors ${explanationEnabled ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-400 border-slate-200'}`}
@@ -272,23 +264,23 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            {Date.now() < rateLimitedUntil && (
+              <div className="bg-blue-50 text-blue-700 text-[10px] p-2 rounded-lg font-bold border border-blue-100 animate-pulse">
+                Áudio temporariamente indisponível (limite atingido). Aguarde alguns segundos.
+              </div>
+            )}
+
             {!isReviewMode && (
               <div className="overflow-x-auto no-scrollbar flex gap-1 py-1">
                 {['TODOS', ...Object.values(ModuleType)].map((mod) => (
                   <button
                     key={mod}
                     onClick={() => { setActiveModule(mod as any); setCurrentIndex(0); setAnswers([]); setIsReviewMode(false); }}
-                    className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${activeModule === mod ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}
+                    className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${activeModule === mod ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-200'}`}
                   >
                     {mod === 'TODOS' ? 'GERAL' : mod}
                   </button>
                 ))}
-              </div>
-            )}
-
-            {isReviewMode && (
-              <div className="bg-amber-100 border border-amber-200 p-2 rounded-lg text-center">
-                <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Revisando Questões Incorretas</p>
               </div>
             )}
 
@@ -318,7 +310,7 @@ const App: React.FC = () => {
               <button 
                 onClick={next}
                 disabled={!currentAnswer}
-                className={`py-3 rounded-xl font-bold text-xs text-white shadow-lg active:scale-95 transition-all ${currentAnswer ? (isReviewMode ? 'bg-amber-600 shadow-amber-200' : 'bg-blue-600 shadow-blue-200') : 'bg-slate-300'}`}
+                className={`py-3 rounded-xl font-bold text-xs text-white shadow-lg active:scale-95 transition-all ${currentAnswer ? (isReviewMode ? 'bg-amber-600' : 'bg-blue-600') : 'bg-slate-300'}`}
               >
                 {currentIndex === filteredQuestions.length - 1 ? 'FINALIZAR' : 'PRÓXIMA'}
               </button>
@@ -329,40 +321,12 @@ const App: React.FC = () => {
             <div className={`w-16 h-16 ${isReviewMode ? 'bg-amber-600' : 'bg-blue-600'} text-white rounded-full flex items-center justify-center mb-4 shadow-xl`}>
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
             </div>
-            <h2 className="text-xl font-black text-slate-900 mb-1 uppercase tracking-tight">
-              {isReviewMode ? 'Revisão Concluída' : 'Simulado Finalizado'}
-            </h2>
+            <h2 className="text-xl font-black text-slate-900 mb-1 uppercase tracking-tight">Resultado</h2>
             <div className="bg-white w-full p-6 rounded-2xl border mb-6 shadow-sm">
               <p className={`text-4xl font-black ${isReviewMode ? 'text-amber-600' : 'text-blue-600'}`}>{Math.round((stats.correct/(filteredQuestions.length || 1))*100)}%</p>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Aproveitamento</p>
-              <div className="grid grid-cols-2 gap-4 mt-6">
-                <div>
-                  <p className="text-emerald-600 font-black text-lg">{stats.correct}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Acertos</p>
-                </div>
-                <div>
-                  <p className="text-rose-600 font-black text-lg">{stats.wrong}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Erros</p>
-                </div>
-              </div>
             </div>
-            
-            <div className="w-full space-y-3">
-              {stats.wrong > 0 && !isReviewMode && (
-                <button 
-                  onClick={startReview}
-                  className="w-full bg-amber-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs shadow-lg shadow-amber-100 transition-all active:scale-95"
-                >
-                  Revisar Erros ({stats.wrong})
-                </button>
-              )}
-              <button 
-                onClick={resetQuiz} 
-                className="w-full bg-blue-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs shadow-lg shadow-blue-100 transition-all active:scale-95"
-              >
-                {isReviewMode ? 'Novo Simulado' : 'Recomeçar'}
-              </button>
-            </div>
+            <button onClick={resetQuiz} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95">RECOMEÇAR</button>
           </div>
         )}
       </main>
