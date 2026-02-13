@@ -2,77 +2,77 @@
 <html lang="pt-BR" class="no-scrollbar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Simulado SEAS-CE - Prof. Robson Sousa</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SEAS-CE | Simulado</title>
     
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#2563eb">
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SEAS Quiz">
-    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3407/3407154.png">
     <link rel="manifest" href="./manifest.json">
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
         body { 
           -webkit-tap-highlight-color: transparent;
-          overscroll-behavior-y: contain;
+          overscroll-behavior: none;
           font-family: 'Inter', sans-serif;
+          user-select: none;
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
         #root:empty::before {
-          content: 'Carregando Simulado...';
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          width: 100vw;
-          background: #f8fafc;
-          color: #64748b;
-          font-weight: 800;
-          font-size: 1.25rem;
+          content: '';
+          display: block;
+          width: 40px;
+          height: 40px;
+          border: 3px solid #e2e8f0;
+          border-top-color: #2563eb;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
           position: fixed;
-          top: 0;
-          left: 0;
+          top: 50%;
+          left: 50%;
+          margin: -20px 0 0 -20px;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class'
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+              }
+            }
+          }
+        }
       }
     </script>
 <script type="importmap">
 {
   "imports": {
+    "react": "https://esm.sh/react@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4",
     "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4"
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4"
   }
 }
 </script>
 </head>
-<body class="bg-slate-100 dark:bg-slate-950 transition-colors duration-300">
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
     <div id="root"></div>
-    
-    <!-- O Vite gerencia todas as importações a partir daqui -->
     <script type="module" src="/index.tsx"></script>
-
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Offline pronto'))
-            .catch(err => console.debug('SW modo dev'));
-        });
-      }
-    </script>
 </body>
 </html>

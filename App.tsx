@@ -1,305 +1,219 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { QUESTIONS } from './data';
 import { ModuleType, AnswerType, UserAnswer, Question } from './types';
 import { QuizCard } from './components/QuizCard';
 
-const STORAGE_KEY = 'seas_ce_app_data_v4';
-const THEME_KEY = 'seas_ce_theme_v4';
+const STORAGE_KEY = 'seas_ce_v6_hybrid';
 
 const App: React.FC = () => {
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem(THEME_KEY);
-    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-
-  const [activeModule, setActiveModule] = useState<ModuleType | 'TODOS'>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved).activeModule || 'TODOS'; } catch (e) { return 'TODOS'; }
-    }
-    return 'TODOS';
-  });
-
-  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [isDarkMode, setIsDarkMode] = useState(() => 
+    localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  );
+  const [activeModule, setActiveModule] = useState<ModuleType | 'TODOS'>('TODOS');
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<UserAnswer[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved).answers || []; } catch (e) { return []; }
-    }
-    return [];
+    return saved ? JSON.parse(saved).answers : [];
   });
-
   const [showFinished, setShowFinished] = useState(false);
-  const [explanationEnabled, setExplanationEnabled] = useState(true);
-  const [isReviewMode, setIsReviewMode] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isReading, setIsReading] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
-    if (isDarkMode) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
-    localStorage.setItem(THEME_KEY, isDarkMode ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
   useEffect(() => {
-    const handler = (e: any) => { 
-      e.preventDefault(); 
-      setDeferredPrompt(e); 
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setDeferredPrompt(null);
-  };
-
-  const filteredQuestions = useMemo(() => {
-    if (isReviewMode) {
-      const wrongIds = answers.filter(a => !a.isCorrect).map(a => a.questionId);
-      return wrongIds.map(id => QUESTIONS.find(q => q.id === id)).filter((q): q is Question => !!q);
-    }
-    const q = activeModule === 'TODOS' ? QUESTIONS : QUESTIONS.filter(q => q.module === activeModule);
-    return [...q].sort((a, b) => a.id - b.id);
-  }, [activeModule, isReviewMode, answers]);
-
-  const currentQuestion = filteredQuestions[currentIndex];
-  const currentAnswer = useMemo(() => answers.find(a => a.questionId === currentQuestion?.id), [answers, currentQuestion]);
-
-  const stats = useMemo(() => {
-    const relevantQ = isReviewMode ? filteredQuestions : (activeModule === 'TODOS' ? QUESTIONS : QUESTIONS.filter(q => q.module === activeModule));
-    const relevantA = answers.filter(a => relevantQ.some(q => q.id === a.questionId));
-    const correct = relevantA.filter(a => a.isCorrect).length;
-    const progress = Math.round((relevantA.length / (relevantQ.length || 1)) * 100);
-    return { correct, wrong: relevantA.length - correct, progress, total: relevantQ.length };
-  }, [answers, filteredQuestions, activeModule, isReviewMode]);
-
-  const moduleStats = useMemo(() => {
-    const results: Record<string, number> = {};
-    const totalCorrect = answers.filter(a => a.isCorrect).length;
-    results['TODOS'] = Math.round((totalCorrect / QUESTIONS.length) * 100);
-
-    Object.values(ModuleType).forEach(mod => {
-      const modQuestions = QUESTIONS.filter(q => q.module === mod);
-      const modAnswers = answers.filter(a => modQuestions.some(q => q.id === a.questionId) && a.isCorrect);
-      results[mod] = Math.round((modAnswers.length / modQuestions.length) * 100);
-    });
-
-    return results;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers }));
   }, [answers]);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeModule, answers, explanationEnabled }));
-  }, [activeModule, answers, explanationEnabled]);
+  const filteredQuestions = useMemo(() => {
+    const q = activeModule === 'TODOS' ? QUESTIONS : QUESTIONS.filter(q => q.module === activeModule);
+    return q.sort((a, b) => a.id - b.id);
+  }, [activeModule]);
+
+  const currentQuestion = filteredQuestions[currentIndex];
+  const currentAnswer = answers.find(a => a.questionId === currentQuestion?.id);
+
+  const stats = useMemo(() => {
+    const moduleQs = filteredQuestions;
+    const moduleAs = answers.filter(a => moduleQs.some(q => q.id === a.questionId));
+    const correct = moduleAs.filter(a => a.isCorrect).length;
+    const progress = Math.round((moduleAs.length / (moduleQs.length || 1)) * 100);
+    return { correct, wrong: moduleAs.length - correct, progress, total: moduleQs.length, answered: moduleAs.length };
+  }, [answers, filteredQuestions]);
+
+  const handleAnswer = (answer: AnswerType) => {
+    if (currentAnswer) return;
+    const isCorrect = answer === currentQuestion.answer;
+    setAnswers(prev => [...prev, { questionId: currentQuestion.id, answer, isCorrect }]);
+    
+    if (isCorrect && currentIndex < filteredQuestions.length - 1) {
+      setTimeout(() => setCurrentIndex(c => c + 1), 1200);
+    }
+  };
 
   const speak = useCallback((text: string) => {
-    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'pt-BR';
-    utter.rate = 1.0;
-    
-    const setVoiceAndSpeak = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const voice = voices.find(v => (v.name.includes('Microsoft') || v.name.includes('Neural')) && v.lang.includes('pt-BR')) 
-                 || voices.find(v => v.lang.includes('pt-BR'));
-      if (voice) utter.voice = voice;
-      window.speechSynthesis.speak(utter);
-    };
-
     utter.onstart = () => setIsReading(true);
     utter.onend = () => setIsReading(false);
-    utter.onerror = () => setIsReading(false);
-
-    if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.onvoiceschanged = setVoiceAndSpeak;
-    } else {
-      setVoiceAndSpeak();
-    }
+    window.speechSynthesis.speak(utter);
   }, []);
 
-  const handleSpeak = (q: Question) => {
-    if (isReading) { 
-      window.speechSynthesis.cancel(); 
-      setIsReading(false); 
-      return; 
-    }
-    speak(`${q.text}. Dica: ${q.explanation || ''}`);
-  };
-
-  const handleAnswer = (answer: AnswerType) => {
-    if (!currentQuestion || currentAnswer) return;
-    const isCorrect = answer === currentQuestion.answer;
-    setAnswers(prev => [...prev.filter(a => a.questionId !== currentQuestion.id), { questionId: currentQuestion.id, answer, isCorrect }]);
-  };
-
-  const startReview = () => {
-    setIsReviewMode(true);
-    setCurrentIndex(0);
-    setShowFinished(false);
-  };
-
-  const reset = () => {
-    if (confirm("Deseja realmente resetar seu progresso neste módulo?")) {
-      const qIds = filteredQuestions.map(q => q.id);
-      setAnswers(prev => prev.filter(a => !qIds.includes(a.questionId)));
-      setCurrentIndex(0);
-      setShowFinished(false);
-      setIsReviewMode(false);
-    }
-  };
-
-  const getAccuracyColor = (accuracy: number, active: boolean) => {
-    if (active) return 'bg-white/20 text-white';
-    if (accuracy >= 80) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
-    if (accuracy >= 50) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
-    return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
-  };
+  const ModuleList = () => (
+    <div className="space-y-1.5">
+      <button 
+        onClick={() => { setActiveModule('TODOS'); setCurrentIndex(0); setIsMenuOpen(false); }}
+        className={`w-full text-left p-4 rounded-2xl font-semibold transition-all flex items-center justify-between ${activeModule === 'TODOS' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+      >
+        <span>Simulado Completo</span>
+        <span className="text-[10px] opacity-60">230 Q</span>
+      </button>
+      {Object.values(ModuleType).map(mod => (
+        <button 
+          key={mod}
+          onClick={() => { setActiveModule(mod); setCurrentIndex(0); setIsMenuOpen(false); }}
+          className={`w-full text-left p-4 rounded-2xl font-semibold transition-all flex items-center justify-between ${activeModule === mod ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+        >
+          <span>{mod}</span>
+          <span className="text-[10px] opacity-60">{QUESTIONS.filter(q => q.module === mod).length} Q</span>
+        </button>
+      ))}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-100 dark:bg-slate-950 transition-colors duration-300 overflow-x-hidden">
-      <aside className="lg:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 lg:h-screen lg:sticky lg:top-0 z-40 flex flex-col shadow-sm">
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-lg">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h1 className="text-lg font-black dark:text-white uppercase tracking-tighter">SEAS Quiz</h1>
+    <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950">
+      {/* Sidebar Desktop */}
+      <aside className="hidden md:flex flex-col w-72 lg:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 p-6 overflow-y-auto no-scrollbar">
+        <div className="flex items-center gap-3 mb-10">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black">S</div>
+          <div>
+            <h1 className="font-black text-sm tracking-tight uppercase">SEAS CE</h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Socioeducação</p>
           </div>
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)} 
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-          >
-            {isDarkMode ? (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 9H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.243 17.657l.707.707M7.757 3.636l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            )}
-          </button>
         </div>
 
-        <nav className="p-4 flex-grow overflow-y-auto no-scrollbar">
-          <div className="mb-6">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Geral</h2>
-            <button 
-              onClick={() => { setActiveModule('TODOS'); setCurrentIndex(0); setShowFinished(false); setIsReviewMode(false); }} 
-              className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group ${activeModule === 'TODOS' && !isReviewMode ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-            >
-              <span className="text-sm font-bold truncate pr-2">Simulado Completo</span>
-              <div className={`text-[10px] font-black px-2 py-0.5 rounded-md ${activeModule === 'TODOS' ? 'bg-white/20 text-white' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'}`}>
-                {moduleStats['TODOS']}%
-              </div>
-            </button>
-          </div>
+        <div className="flex-grow">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2">Conteúdo</h3>
+          <ModuleList />
+        </div>
 
-          <div>
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-2">Progresso por Módulo</h2>
-            <div className="space-y-1.5">
-              {Object.values(ModuleType).map(mod => {
-                const accuracy = moduleStats[mod] || 0;
-                const isActive = activeModule === mod && !isReviewMode;
-                return (
-                  <button 
-                    key={mod} 
-                    onClick={() => { setActiveModule(mod); setCurrentIndex(0); setShowFinished(false); setIsReviewMode(false); }} 
-                    className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center justify-between group ${isActive ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                  >
-                    <span className="text-sm font-bold truncate pr-2">{mod}</span>
-                    <div className={`text-[10px] font-black px-2 py-0.5 rounded-md transition-colors ${getAccuracyColor(accuracy, isActive)}`}>
-                      {accuracy}%
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </nav>
-
-        <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
+        <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
           <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-2">
-            <span>Aproveitamento</span>
-            <span className="text-blue-600 dark:text-blue-400 font-black">{stats.progress}%</span>
+            <span>Progresso Geral</span>
+            <span className="text-blue-600">{stats.progress}%</span>
           </div>
-          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${stats.progress}%`}}></div>
+          <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-600 transition-all duration-700" style={{ width: `${stats.progress}%` }} />
           </div>
-          <button onClick={reset} className="w-full mt-4 text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline text-center">Limpar Módulo Atual</button>
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-full mt-6 py-3 px-4 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-center gap-2 text-xs font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+            {isDarkMode ? 'Modo Claro' : 'Modo Escuro'}
+          </button>
         </div>
       </aside>
 
-      <main className="flex-grow flex flex-col p-4 lg:p-12 items-center justify-center">
-        {!showFinished ? (
-          <div className="w-full max-w-3xl">
-            <div className="flex justify-between items-end mb-8">
-              <div>
-                <h2 className="text-3xl lg:text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
-                  {isReviewMode ? 'Revisão' : `Questão ${currentIndex + 1}`}
-                </h2>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
-                  {isReviewMode ? 'Focando nos erros' : `${activeModule} — ${currentIndex + 1} de ${filteredQuestions.length}`}
-                </p>
-              </div>
-              <button 
-                onClick={() => setExplanationEnabled(!explanationEnabled)} 
-                className={`px-4 py-2 rounded-lg text-[10px] font-black border transition-all ${explanationEnabled ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'}`}
-              >
-                DICA {explanationEnabled ? 'ON' : 'OFF'}
-              </button>
-            </div>
+      {/* Main Content Area */}
+      <div className="flex-grow flex flex-col items-center">
+        {/* Mobile Header */}
+        <header className="md:hidden w-full h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-6 sticky top-0 z-40">
+          <button onClick={() => setIsMenuOpen(true)} className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-xs">S</div>
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">{activeModule}</span>
+          </button>
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 text-slate-400">
+            {isDarkMode ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 3v1m0 16v1m9-9h-1M4 9H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.243 17.657l.707.707M7.757 3.636l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>}
+          </button>
+        </header>
 
-            {currentQuestion ? (
+        {/* Question Content */}
+        <main className="w-full max-w-4xl px-6 py-8 md:py-16 flex-grow flex flex-col pb-32">
+          {!showFinished ? (
+            <div className="flex-grow flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-8 flex justify-between items-end">
+                <div>
+                  <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 dark:text-white mb-1">Questão {currentIndex + 1}</h2>
+                  <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{activeModule} — {currentIndex + 1} de {filteredQuestions.length}</p>
+                </div>
+                <button 
+                  onClick={() => speak(currentQuestion.text)} 
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isReading ? 'bg-blue-600 text-white animate-pulse' : 'bg-white dark:bg-slate-900 text-slate-400 shadow-sm border border-slate-100 dark:border-slate-800'}`}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                </button>
+              </div>
+
               <QuizCard 
                 question={currentQuestion} 
                 onAnswer={handleAnswer} 
                 userAnswer={currentAnswer?.answer} 
-                showExplanation={explanationEnabled} 
-                onSpeak={() => handleSpeak(currentQuestion)} 
-                isReading={isReading}
-                isAudioLoading={false}
-                isAudioCached={false}
               />
-            ) : (
-               <div className="text-center p-12 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                  <p className="text-slate-500 dark:text-slate-400 font-bold">Sem questões aqui.</p>
-                  <button onClick={() => {setIsReviewMode(false); setCurrentIndex(0);}} className="mt-4 text-blue-600 font-black uppercase text-xs">Voltar</button>
-               </div>
-            )}
+            </div>
+          ) : (
+            <div className="flex-grow flex flex-col items-center justify-center text-center py-20 animate-in zoom-in-95">
+              <div className="w-24 h-24 bg-blue-600 rounded-[2rem] flex items-center justify-center text-white text-4xl mb-8 shadow-2xl shadow-blue-600/30">✓</div>
+              <h2 className="text-4xl font-black mb-3 tracking-tight">Excelente trabalho!</h2>
+              <p className="text-slate-500 dark:text-slate-400 font-medium mb-12 max-w-sm">Você concluiu este módulo com sucesso. {stats.correct} acertos de {stats.total} questões.</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-md">
+                <button 
+                  onClick={() => { setShowFinished(false); setCurrentIndex(0); }} 
+                  className="py-5 bg-blue-600 text-white rounded-3xl font-black text-sm uppercase tracking-widest transition-transform active:scale-95 shadow-xl shadow-blue-600/20"
+                >
+                  Reiniciar Módulo
+                </button>
+                <button 
+                  onClick={() => { setActiveModule('TODOS'); setShowFinished(false); setCurrentIndex(0); }} 
+                  className="py-5 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800 rounded-3xl font-black text-sm uppercase tracking-widest transition-transform active:scale-95 shadow-sm"
+                >
+                  Voltar ao Início
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
 
-            <div className="grid grid-cols-2 gap-4 mt-8">
-              <button onClick={() => { setCurrentIndex(c => Math.max(0, c - 1)); window.speechSynthesis.cancel(); }} disabled={currentIndex === 0} className="py-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-2xl font-black text-sm disabled:opacity-30">ANTERIOR</button>
-              <button onClick={() => { if (currentIndex === filteredQuestions.length - 1) setShowFinished(true); else setCurrentIndex(c => c + 1); window.speechSynthesis.cancel(); }} disabled={!currentAnswer} className={`py-5 text-white rounded-2xl font-black text-sm ${currentAnswer ? 'bg-blue-600' : 'bg-slate-300'}`}>{currentIndex === filteredQuestions.length - 1 ? 'CONCLUIR' : 'PRÓXIMA'}</button>
+        {/* Navigation Floating Bar */}
+        {!showFinished && (
+          <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl p-2 z-30">
+            <div className="grid grid-cols-2 gap-2">
+              <button 
+                onClick={() => { setCurrentIndex(c => Math.max(0, c - 1)); window.speechSynthesis.cancel(); }} 
+                disabled={currentIndex === 0}
+                className="py-4 rounded-[2rem] bg-slate-50 dark:bg-slate-800 text-slate-500 font-black text-[10px] uppercase tracking-widest disabled:opacity-20 transition-all hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                Anterior
+              </button>
+              <button 
+                onClick={() => { if (currentIndex === filteredQuestions.length - 1) setShowFinished(true); else setCurrentIndex(c => c + 1); window.speechSynthesis.cancel(); }}
+                className={`py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${currentAnswer ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-slate-200 dark:bg-slate-800 text-slate-400'}`}
+              >
+                {currentIndex === filteredQuestions.length - 1 ? 'Finalizar' : 'Próxima'}
+              </button>
             </div>
-          </div>
-        ) : (
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl text-center border border-slate-100 dark:border-slate-800 animate-in zoom-in-95">
-            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Parabéns!</h2>
-            <div className="grid grid-cols-2 gap-4 my-8">
-              <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-3xl">
-                <p className="text-emerald-600 text-4xl font-black">{stats.correct}</p>
-                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest">Acertos</p>
-              </div>
-              <div className="bg-rose-50 dark:bg-rose-950/20 p-6 rounded-3xl">
-                <p className="text-rose-600 text-4xl font-black">{stats.wrong}</p>
-                <p className="text-[10px] font-bold text-rose-800 uppercase tracking-widest">Erros</p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {stats.wrong > 0 && <button onClick={startReview} className="w-full py-5 bg-amber-500 text-white rounded-2xl font-black text-sm uppercase">Revisar Erros</button>}
-              <button onClick={() => { setShowFinished(false); setCurrentIndex(0); setIsReviewMode(false); }} className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase">Reiniciar Módulo</button>
-            </div>
-          </div>
+          </nav>
         )}
-      </main>
+      </div>
+
+      {/* Mobile Menu Drawer */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-[100] md:hidden bg-slate-950/60 backdrop-blur-sm animate-in fade-in" onClick={() => setIsMenuOpen(false)}>
+          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 rounded-t-[3rem] p-10 pb-16 animate-in slide-in-from-bottom-full duration-500" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full mx-auto mb-10" />
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-6 text-center">Selecione o Módulo</h3>
+            <ModuleList />
+            <button 
+              onClick={() => { if(confirm("Deseja resetar todo o progresso?")) setAnswers([]); setIsMenuOpen(false); }}
+              className="w-full mt-10 py-4 text-rose-500 font-bold text-xs uppercase tracking-widest border border-rose-100 dark:border-rose-900/30 rounded-2xl"
+            >
+              Resetar Progresso
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
