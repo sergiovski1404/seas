@@ -37,7 +37,7 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
-<script type="importmap">
+    <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
@@ -53,18 +53,25 @@
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
-      // Registro de Service Worker mais resiliente para ambientes de sandbox
+      // Registro de Service Worker otimizado
+      // Para evitar erros de "origin mismatch" em ambientes de sandbox/preview,
+      // usamos caminhos relativos e silenciamos avisos de segurança esperados.
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Usando caminho relativo direto para evitar problemas de origem em previews
-          const swPath = 'sw.js';
-          navigator.serviceWorker.register(swPath)
-            .then(registration => {
-              console.log('SW registrado em:', registration.scope);
+          const swFile = 'sw.js';
+          // Tenta registrar de forma relativa ao local atual do index.html
+          navigator.serviceWorker.register(swFile)
+            .then(reg => {
+              console.log('SW registrado em:', reg.scope);
             })
             .catch(err => {
-              // Apenas logar o erro sem interromper a execução do app principal
-              console.warn('Registro de Service Worker ignorado (ambiente restrito):', err.message);
+              // No GitHub Pages ou AI Studio Preview, avisos de origem são comuns.
+              // O app continuará funcionando via CDN mesmo sem o Service Worker.
+              if (err.message.includes('origin')) {
+                console.warn('O registro do Service Worker foi ignorado para evitar conflitos de domínio.');
+              } else {
+                console.error('Falha no Service Worker:', err);
+              }
             });
         });
       }
