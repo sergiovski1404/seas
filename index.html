@@ -42,7 +42,10 @@
 <body class="bg-slate-50 text-slate-900 overflow-x-hidden">
     <div id="root"></div>
     
-    <script type="module" src="index.tsx"></script>
+    <!-- Importação direta com extensão para evitar erros no Vercel -->
+    <script type="module">
+      import "./index.tsx";
+    </script>
 
     <script>
       if ('serviceWorker' in navigator) {
