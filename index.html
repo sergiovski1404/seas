@@ -13,91 +13,68 @@
     <meta name="apple-mobile-web-app-title" content="SEAS Quiz">
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3407/3407154.png">
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="./manifest.json">
     
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
-    <!-- Babel para suportar .tsx diretamente no navegador em servidores estáticos -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            },
-          }
-        }
-      }
-    </script>
     <style>
         body { 
           -webkit-tap-highlight-color: transparent;
           overscroll-behavior-y: contain;
+          font-family: 'Inter', sans-serif;
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Estilo para o estado de carregamento inicial */
         #root:empty::before {
-          content: 'Carregando simulado...';
+          content: 'Iniciando Simulado...';
           display: flex;
           justify-content: center;
           align-items: center;
           height: 100vh;
-          font-family: sans-serif;
+          width: 100vw;
+          background: #f8fafc;
           color: #64748b;
-          font-weight: bold;
+          font-weight: 800;
+          font-size: 1.25rem;
+          position: fixed;
+          top: 0;
+          left: 0;
         }
     </style>
-    
-    <!-- Import Map Simplificado para produção -->
-    <script type="importmap">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class'
+      }
+    </script>
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.0.0?dev",
-    "react-dom": "https://esm.sh/react-dom@19.0.0?dev",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client?dev",
+    "react": "https://esm.sh/react@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/"
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4"
   }
 }
 </script>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 transition-colors duration-300">
     <div id="root"></div>
-
-    <!-- Script principal com Babel para transformar TSX em JS no navegador -->
-    <script type="text/babel" data-type="module" data-presets="typescript,react">
-      import './index.tsx';
-    </script>
+    
+    <!-- Entrada principal para o Vite -->
+    <script type="module" src="./index.tsx"></script>
 
     <script>
-      // Registro de Service Worker com tratamento de erro aprimorado
+      // Registro do Service Worker de forma segura
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Usa caminho relativo para funcionar em subpastas como /seas/
           navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('Socioeducação App: Offline pronto.'))
-            .catch(err => {
-              // Se falhar por causa do domínio (comum em previews), ignora silenciosamente
-              if (err.message.includes('origin') || err.message.includes('SecurityError')) {
-                console.warn('Modo offline desativado para este domínio (esperado em ambiente de teste).');
-              } else {
-                console.error('Erro no Service Worker:', err);
-              }
-            });
+            .then(reg => console.log('Socioeducação Offline: OK'))
+            .catch(err => console.debug('Offline desativado em ambiente de desenvolvimento'));
         });
       }
-
-      // Fallback para erros globais (ajuda a debugar tela branca)
-      window.onerror = function(message, source, lineno, colno, error) {
-        console.error("Erro Detectado:", message, "em", source);
-        // Opcional: mostrar erro na tela se for ambiente de dev
-        return false;
-      };
     </script>
 </body>
 </html>
