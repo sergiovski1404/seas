@@ -1,0 +1,5 @@
+{
+  "name": "Quiz Socioeducação - SEAS-CE",
+  "description": "Aplicativo de questões interativo e minimalista focado no concurso SEAS-CE, baseado nos simulados do Professor Robson Sousa. Inclui 230 questões comentadas divididas por módulos.",
+  "requestFramePermissions": []
+}
