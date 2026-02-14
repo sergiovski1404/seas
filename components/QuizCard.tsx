@@ -1,58 +1,126 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Question, AnswerType } from '../types';
 
 interface QuizCardProps {
   question: Question;
   onAnswer: (answer: AnswerType) => void;
   userAnswer?: AnswerType;
+  isReading: boolean;
+  readingType: 'question' | 'explanation' | null;
+  currentCharIndex: number;
 }
 
-export const QuizCard: React.FC<QuizCardProps> = ({ question, onAnswer, userAnswer }) => {
+export const QuizCard: React.FC<QuizCardProps> = ({ 
+  question, 
+  onAnswer, 
+  userAnswer, 
+  isReading,
+  readingType,
+  currentCharIndex 
+}) => {
   const isAnswered = userAnswer !== undefined;
   const isCorrect = userAnswer === question.answer;
 
+  const questionWords = useMemo(() => {
+    const arr: { text: string; start: number; end: number }[] = [];
+    let pos = 0;
+    const parts = question.text.split(/(\s+)/);
+    parts.forEach(part => {
+      arr.push({ text: part, start: pos, end: pos + part.length });
+      pos += part.length;
+    });
+    return arr;
+  }, [question.text]);
+
+  const explanationWords = useMemo(() => {
+    if (!question.explanation) return [];
+    // Adicionamos o prefixo "Gabarito: Correto. " ou "Gabarito: Errado. " para alinhar com o áudio
+    const prefix = `Gabarito: ${question.answer === AnswerType.CORRETO ? 'Correto' : 'Errado'}. `;
+    const fullText = prefix + question.explanation;
+    const arr: { text: string; start: number; end: number }[] = [];
+    let pos = 0;
+    const parts = fullText.split(/(\s+)/);
+    parts.forEach(part => {
+      arr.push({ text: part, start: pos, end: pos + part.length });
+      pos += part.length;
+    });
+    return arr;
+  }, [question.explanation, question.answer]);
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-10">
-        <p className="text-xl md:text-2xl font-semibold leading-relaxed text-slate-800 dark:text-slate-100">
-          {question.text}
+    <div className="w-full flex flex-col items-center">
+      {/* Texto da Questão com Realce */}
+      <div className="mb-20 text-center relative px-4">
+        <p className="text-xl md:text-3xl font-semibold leading-[1.7] tracking-tight">
+          {questionWords.map((w, idx) => {
+            const active = isReading && readingType === 'question' && currentCharIndex >= w.start && currentCharIndex < w.end;
+            return (
+              <span 
+                key={idx} 
+                className={`transition-all duration-200 rounded px-0.5 ${
+                  active 
+                    ? 'text-blue-500 bg-blue-500/10' 
+                    : (isReading && readingType === 'question') ? 'opacity-30' : 'opacity-90'
+                }`}
+              >
+                {w.text}
+              </span>
+            );
+          })}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
+      {/* Botões de Resposta Minimalistas */}
+      <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-12">
         <button 
           onClick={() => onAnswer(AnswerType.CORRETO)}
           disabled={isAnswered}
-          className={`flex items-center justify-between px-8 py-5 rounded-2xl border-2 transition-all active:scale-95 ${
+          className={`py-8 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all ${
             isAnswered 
-              ? (question.answer === AnswerType.CORRETO ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : (userAnswer === AnswerType.CORRETO ? 'bg-rose-500 border-rose-500 text-white' : 'bg-slate-100 dark:bg-slate-800 border-transparent opacity-40'))
-              : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-blue-500 text-slate-600 dark:text-slate-300'
+              ? (question.answer === AnswerType.CORRETO ? 'bg-emerald-500 text-white' : (userAnswer === AnswerType.CORRETO ? 'bg-rose-500 text-white' : 'bg-white/5 opacity-10'))
+              : 'bg-white/5 hover:bg-white/10 text-white/40 hover:text-white'
           }`}
         >
-          <span className="font-bold text-xs tracking-widest uppercase">Correto</span>
-          {isAnswered && question.answer === AnswerType.CORRETO && <span>✓</span>}
+          Correto
         </button>
 
         <button 
           onClick={() => onAnswer(AnswerType.ERRADO)}
           disabled={isAnswered}
-          className={`flex items-center justify-between px-8 py-5 rounded-2xl border-2 transition-all active:scale-95 ${
+          className={`py-8 rounded-3xl font-black uppercase tracking-[0.2em] text-[10px] transition-all ${
             isAnswered 
-              ? (question.answer === AnswerType.ERRADO ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg' : (userAnswer === AnswerType.ERRADO ? 'bg-rose-500 border-rose-500 text-white' : 'bg-slate-100 dark:bg-slate-800 border-transparent opacity-40'))
-              : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-blue-500 text-slate-600 dark:text-slate-300'
+              ? (question.answer === AnswerType.ERRADO ? 'bg-emerald-500 text-white' : (userAnswer === AnswerType.ERRADO ? 'bg-rose-500 text-white' : 'bg-white/5 opacity-10'))
+              : 'bg-white/5 hover:bg-white/10 text-white/40 hover:text-white'
           }`}
         >
-          <span className="font-bold text-xs tracking-widest uppercase">Errado</span>
-          {isAnswered && question.answer === AnswerType.ERRADO && <span>✓</span>}
+          Errado
         </button>
       </div>
 
-      {isAnswered && question.explanation && (
-        <div className={`mt-8 p-6 rounded-3xl border animate-in slide-in-from-top-4 duration-500 ${isCorrect ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30 text-emerald-900 dark:text-emerald-400' : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30 text-rose-900 dark:text-rose-400'}`}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest">Gabarito Comentado</span>
+      {/* Comentário com Realce de Leitura */}
+      {isAnswered && (
+        <div className={`p-8 rounded-[2.5rem] border animate-in slide-in-from-bottom-6 duration-700 w-full ${isCorrect ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-100/70' : 'bg-rose-500/5 border-rose-500/10 text-rose-100/70'}`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`w-2 h-2 rounded-full ${isCorrect ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+            <span className="text-[9px] font-black uppercase tracking-[0.3em] opacity-50">Explicação do Professor</span>
           </div>
-          <p className="text-sm md:text-base font-medium leading-relaxed">{question.explanation}</p>
+          <p className="text-sm md:text-base leading-relaxed font-medium">
+            {explanationWords.map((w, idx) => {
+              const active = isReading && readingType === 'explanation' && currentCharIndex >= w.start && currentCharIndex < w.end;
+              return (
+                <span 
+                  key={idx} 
+                  className={`transition-all duration-200 rounded px-0.5 ${
+                    active 
+                      ? 'text-white bg-blue-600/40 shadow-sm' 
+                      : (isReading && readingType === 'explanation') ? 'opacity-30' : 'opacity-100'
+                  }`}
+                >
+                  {w.text}
+                </span>
+              );
+            })}
+          </p>
         </div>
       )}
     </div>
