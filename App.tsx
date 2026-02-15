@@ -7,19 +7,46 @@ const STORAGE_KEY = 'seas_minimal_v3_persistence';
 const PROGRESS_KEY = 'seas_progress_v3';
 
 const App: React.FC = () => {
+  // Inicialização robusta do Módulo Ativo
   const [activeModule, setActiveModule] = useState<ModuleType | 'TODOS' | 'REVISAO'>(() => {
-    const saved = localStorage.getItem(PROGRESS_KEY);
-    return saved ? JSON.parse(saved).activeModule : 'TODOS';
+    try {
+      const saved = localStorage.getItem(PROGRESS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.activeModule || 'TODOS';
+      }
+    } catch (e) {
+      console.error("Erro ao recuperar módulo salvo:", e);
+    }
+    return 'TODOS';
   });
 
+  // Inicialização robusta do Índice da Questão
   const [currentIndex, setCurrentIndex] = useState<number>(() => {
-    const saved = localStorage.getItem(PROGRESS_KEY);
-    return saved ? JSON.parse(saved).currentIndex : 0;
+    try {
+      const saved = localStorage.getItem(PROGRESS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return typeof parsed.currentIndex === 'number' ? parsed.currentIndex : 0;
+      }
+    } catch (e) {
+      console.error("Erro ao recuperar índice salvo:", e);
+    }
+    return 0;
   });
 
+  // Inicialização robusta das Respostas
   const [answers, setAnswers] = useState<UserAnswer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved).answers : [];
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed.answers) ? parsed.answers : [];
+      }
+    } catch (e) {
+      console.error("Erro ao recuperar respostas salvas:", e);
+    }
+    return [];
   });
   
   const [isReading, setIsReading] = useState(false);
@@ -47,12 +74,21 @@ const App: React.FC = () => {
     return () => window.speechSynthesis.cancel();
   }, []);
 
+  // Salva o progresso sempre que o módulo ou índice mudar
   useEffect(() => {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify({ activeModule, currentIndex }));
+    try {
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify({ activeModule, currentIndex }));
+    } catch (e) {
+      console.error("Erro ao salvar progresso:", e);
+    }
   }, [activeModule, currentIndex]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers }));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers }));
+    } catch (e) {
+      console.error("Erro ao salvar respostas:", e);
+    }
   }, [answers]);
 
   const stopAudio = useCallback(() => {
