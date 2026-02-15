@@ -224,11 +224,24 @@ const App: React.FC = () => {
               {currentIndex + 1} <span className="text-slate-600 mx-1">/</span> {filteredQuestions.length || 0}
             </span>
             {/* Barra de Progresso do Módulo */}
-            <div className="w-full h-1 bg-slate-800/50 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-blue-600 transition-all duration-500 ease-out"
-                style={{ width: `${moduleStats.percent}%` }}
-              />
+            <div className="w-full h-1 bg-slate-800/50 rounded-full overflow-hidden flex">
+              {/* Calcula a proporção local de acertos/erros para a barra do header */}
+              {(() => {
+                 const modAnswered = filteredQuestions.filter(q => answers.some(a => a.questionId === q.id));
+                 const modCorrect = modAnswered.filter(q => answers.find(a => a.questionId === q.id)?.isCorrect).length;
+                 const modIncorrect = modAnswered.length - modCorrect;
+                 const total = filteredQuestions.length || 1;
+                 
+                 const pCorrect = (modCorrect / total) * 100;
+                 const pIncorrect = (modIncorrect / total) * 100;
+                 
+                 return (
+                   <>
+                     <div style={{ width: `${pCorrect}%` }} className="h-full bg-emerald-500 transition-all duration-500" />
+                     <div style={{ width: `${pIncorrect}%` }} className="h-full bg-rose-500 transition-all duration-500" />
+                   </>
+                 );
+              })()}
             </div>
           </div>
         </div>
@@ -287,7 +300,7 @@ const App: React.FC = () => {
 
       {isMenuOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300" onClick={() => setIsMenuOpen(false)}>
-          <div className="bg-[#0a0a0a] w-full max-w-sm rounded-[3rem] p-10 space-y-3 shadow-2xl border border-white/5" onClick={e => e.stopPropagation()}>
+          <div className="bg-[#0a0a0a] w-full max-w-sm rounded-[3rem] p-10 space-y-3 shadow-2xl border border-white/5 max-h-[85vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
             <div className="mb-8 text-center">
               <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 mb-2">Estatísticas Gerais</h3>
               <div className="text-3xl font-bold text-white mb-1">{totalStats.percent}%</div>
@@ -308,15 +321,62 @@ const App: React.FC = () => {
               <span className="font-bold text-sm">Revisar Erros</span>
               <span className="text-[10px] font-black bg-black/20 px-2 py-1 rounded-lg">{missedQuestions.length}</span>
             </button>
-            {['TODOS', ...Object.values(ModuleType)].map(mod => (
-              <button 
-                key={mod}
-                onClick={() => changeModule(mod as any)}
-                className={`w-full p-5 rounded-2xl flex justify-between items-center transition-all ${activeModule === mod ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
-              >
-                <span className="font-bold text-sm">{mod === 'TODOS' ? 'Simulado Geral' : mod}</span>
-              </button>
-            ))}
+            
+            <div className="space-y-3 pt-3">
+              {['TODOS', ...Object.values(ModuleType)].map(mod => {
+                const modQuestions = mod === 'TODOS' ? QUESTIONS : QUESTIONS.filter(q => q.module === mod);
+                const total = modQuestions.length;
+                
+                // Cálculo de Acertos e Erros por Módulo
+                const modQuestionIds = new Set(modQuestions.map(q => q.id));
+                const modAnswers = answers.filter(a => modQuestionIds.has(a.questionId));
+                
+                const correctCount = modAnswers.filter(a => a.isCorrect).length;
+                const incorrectCount = modAnswers.filter(a => !a.isCorrect).length;
+                
+                const correctPercent = total > 0 ? (correctCount / total) * 100 : 0;
+                const incorrectPercent = total > 0 ? (incorrectCount / total) * 100 : 0;
+                
+                return (
+                  <button 
+                    key={mod}
+                    onClick={() => changeModule(mod as any)}
+                    className={`w-full p-4 rounded-2xl flex flex-col gap-3 transition-all border ${activeModule === mod ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20' : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:border-white/10'}`}
+                  >
+                    <div className="flex justify-between items-center w-full">
+                      <span className="font-bold text-sm">{mod === 'TODOS' ? 'Simulado Geral' : mod}</span>
+                    </div>
+                    
+                    {/* Indicadores Visuais de Acerto/Erro */}
+                    <div className="flex justify-between items-center text-xs font-bold w-full px-1">
+                      <span className="text-emerald-400 flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M5 13l4 4L19 7" /></svg>
+                        {correctCount}
+                      </span>
+                      <span className="text-rose-400 flex items-center gap-1">
+                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M6 18L18 6M6 6l12 12" /></svg>
+                        {incorrectCount}
+                      </span>
+                      <span className="text-slate-500 text-[10px] font-black tracking-widest bg-black/20 px-2 py-1 rounded">
+                        {modAnswers.length}/{total}
+                      </span>
+                    </div>
+
+                    {/* Barra de Progresso Empilhada (Stacked Bar) */}
+                    <div className="w-full h-1.5 bg-black/20 rounded-full overflow-hidden flex">
+                      <div 
+                        className="h-full bg-emerald-500 transition-all duration-500 ease-out"
+                        style={{ width: `${correctPercent}%` }}
+                      />
+                      <div 
+                        className="h-full bg-rose-500 transition-all duration-500 ease-out"
+                        style={{ width: `${incorrectPercent}%` }}
+                      />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
