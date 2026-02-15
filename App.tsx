@@ -117,6 +117,28 @@ const App: React.FC = () => {
     return [...q].sort((a, b) => a.id - b.id);
   }, [activeModule, missedQuestions]);
 
+  // Estatísticas de Progresso Geral
+  const totalStats = useMemo(() => {
+    const total = QUESTIONS.length;
+    const answered = answers.length;
+    const percent = total > 0 ? Math.round((answered / total) * 100) : 0;
+    return { total, answered, percent };
+  }, [answers]);
+
+  // Estatísticas do Módulo Atual
+  const moduleStats = useMemo(() => {
+    const total = filteredQuestions.length;
+    if (total === 0) return { total: 0, answered: 0, percent: 0 };
+    
+    // Conta quantas das questões filtradas já foram respondidas
+    const answered = filteredQuestions.filter(q => 
+      answers.some(a => a.questionId === q.id)
+    ).length;
+    
+    const percent = Math.round((answered / total) * 100);
+    return { total, answered, percent };
+  }, [filteredQuestions, answers]);
+
   const currentQuestion = filteredQuestions[currentIndex];
   const currentAnswer = answers.find(a => a.questionId === currentQuestion?.id);
 
@@ -177,16 +199,40 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col font-['Inter']">
-      <header className="h-24 flex items-center justify-between px-8 z-50">
+    <div className="min-h-screen bg-[#050505] text-white flex flex-col font-['Inter'] relative">
+      {/* Barra de Progresso Geral (Topo da Tela) */}
+      <div className="fixed top-0 left-0 w-full h-1 bg-slate-900 z-[60]">
+        <div 
+          className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-700 ease-out"
+          style={{ width: `${totalStats.percent}%` }}
+        />
+      </div>
+
+      <header className="h-24 flex items-center justify-between px-8 z-50 pt-2">
         <button onClick={() => setIsMenuOpen(true)} className="flex items-center gap-2 group">
           <div className="w-6 h-6 rounded bg-slate-800 flex items-center justify-center text-[8px] font-black group-hover:bg-blue-600 transition-colors">M</div>
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 hidden sm:block">Filtros</span>
         </button>
-        <div className="text-center">
-          <span className="text-[9px] font-black text-blue-500 uppercase tracking-[0.4em] block mb-1">{activeModule}</span>
-          <span className="text-[10px] font-bold text-slate-600">{currentIndex + 1} / {filteredQuestions.length || 0}</span>
+        
+        {/* Indicador de Módulo e Progresso Local */}
+        <div className="text-center w-full max-w-[140px]">
+          <span className="text-[9px] font-black text-blue-500 uppercase tracking-[0.3em] block mb-1 truncate">
+            {activeModule === 'TODOS' ? 'Geral' : activeModule}
+          </span>
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] font-bold text-slate-400">
+              {currentIndex + 1} <span className="text-slate-600 mx-1">/</span> {filteredQuestions.length || 0}
+            </span>
+            {/* Barra de Progresso do Módulo */}
+            <div className="w-full h-1 bg-slate-800/50 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-600 transition-all duration-500 ease-out"
+                style={{ width: `${moduleStats.percent}%` }}
+              />
+            </div>
+          </div>
         </div>
+
         <button 
           onClick={() => {
             if (currentAnswer) {
@@ -214,7 +260,10 @@ const App: React.FC = () => {
         ) : (
           <div className="text-center animate-in zoom-in duration-500">
             <h2 className="text-4xl font-black mb-6">Módulo Concluído</h2>
-            <button onClick={() => changeModule('TODOS')} className="px-12 py-4 bg-blue-600 rounded-full font-black uppercase tracking-widest text-xs">Recomeçar</button>
+            <div className="text-slate-500 mb-8 font-medium">
+              Você completou {moduleStats.answered} questões.
+            </div>
+            <button onClick={() => changeModule('TODOS')} className="px-12 py-4 bg-blue-600 rounded-full font-black uppercase tracking-widest text-xs hover:bg-blue-500 transition-colors">Recomeçar</button>
           </div>
         )}
       </main>
@@ -239,7 +288,18 @@ const App: React.FC = () => {
       {isMenuOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300" onClick={() => setIsMenuOpen(false)}>
           <div className="bg-[#0a0a0a] w-full max-w-sm rounded-[3rem] p-10 space-y-3 shadow-2xl border border-white/5" onClick={e => e.stopPropagation()}>
-            <h3 className="text-center text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 mb-8">Selecione o Módulo</h3>
+            <div className="mb-8 text-center">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 mb-2">Estatísticas Gerais</h3>
+              <div className="text-3xl font-bold text-white mb-1">{totalStats.percent}%</div>
+              <p className="text-xs text-slate-500 font-medium">
+                {totalStats.answered} de {totalStats.total} questões respondidas
+              </p>
+            </div>
+
+            <div className="h-px bg-white/5 my-6 w-full" />
+
+            <h3 className="text-center text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 mb-4">Módulos</h3>
+            
             <button 
               onClick={() => changeModule('REVISAO')}
               disabled={missedQuestions.length === 0}
